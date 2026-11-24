@@ -86,6 +86,12 @@
   .spec .who { min-width: 0; text-align: center; padding: 0 6px; line-height: 1.2; }
   .spec .who b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .spec .who span { font-size: .8rem; color: var(--muted); white-space: nowrap; }
+  .update { position: fixed; top: max(10px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 40;
+    display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--accent);
+    border-radius: 999px; padding: 5px 5px 5px 14px; font-weight: 600; font-size: .9rem; white-space: nowrap;
+    max-width: calc(100vw - 32px); box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+  .update.hidden { display: none; }
+  .update button { padding: 6px 14px; font-size: .9rem; }
   .av { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; flex: none; vertical-align: middle; }
   .av[hidden] { display: none; }
   .av-btn { width: 52px; height: 52px; padding: 0; border-radius: 50%; overflow: hidden; flex: none;
@@ -198,6 +204,13 @@
       <button class="sec" id="quit">Abandonar</button>
     </div>
   </div>
+</div>
+
+<!-- Aviso de versión nueva -->
+<div class="update hidden" id="update">
+  <span>✨ Hay una versión nueva</span>
+  <button id="updateBtn" type="button">Actualizar</button>
+  <button class="sec" id="updateX" type="button" aria-label="Cerrar aviso">✕</button>
 </div>
 
 <!-- Modo espectador: aparece al morir mientras la partida sigue -->
@@ -2268,7 +2281,7 @@ function showLobby() {
   $('lobbyTitle').textContent = host ? '👥 Tu sala' : '👥 Sala';
   $('lobbyStart').style.display = host ? '' : 'none';
   $('lobbyShare').style.display = host && net.code ? '' : 'none';
-  $('lobbyHint').textContent = host ? 'Pasa el código a tus amigos. Cuando estén todos, pulsa Empezar. Los huecos se rellenan con bots.' : '';
+  $('lobbyHint').textContent = host ? 'Pasa el código a tus amigos y vuelve aquí: deja el juego abierto en pantalla mientras entran. Cuando estén todos, pulsa Empezar. Los huecos se rellenan con bots.' : '';
   renderLobby();
 }
 function renderLobby() {
@@ -2314,19 +2327,41 @@ function createRoom(tries = 0) {
     if (state === 'menu') lobbyMsg(peerErrorText(err));
   });
 }
+// PeerJS corta la conexión si un mensaje JSON pasa de ~16 KB (el inicio de partida lleva el mapa entero),
+// así que los mensajes grandes se envían en trozos y se vuelven a juntar al llegar (el canal es ordenado y fiable).
+const NET_CHUNK = 7000;
+let netSeq = 0;
+function netSend(conn, msg) {
+  const s = JSON.stringify(msg);
+  if (s.length <= NET_CHUNK) { conn.send(msg); return; }
+  const id = ++netSeq, n = Math.ceil(s.length / NET_CHUNK);
+  for (let i = 0; i < n; i++) conn.send({ t: 'ch', id, i, n, d: s.slice(i * NET_CHUNK, (i + 1) * NET_CHUNK) });
+}
+function netRecv(conn, m) {
+  if (!m || typeof m !== 'object' || m.t !== 'ch') return m;
+  if (typeof m.d !== 'string' || !(m.n > 0 && m.n <= 400) || !(m.i >= 0 && m.i < m.n)) return null;
+  const parts = conn.chunks || (conn.chunks = {});
+  if (!parts[m.id]) { for (const k in parts) if (+k < m.id) delete parts[k]; parts[m.id] = { got: 0, d: [] }; }
+  const p = parts[m.id];
+  if (p.d[m.i] == null) { p.d[m.i] = m.d; p.got++; }
+  if (p.got < m.n) return null;
+  delete parts[m.id];
+  try { return JSON.parse(p.d.join('')); } catch (e) { return null; }
+}
 function setupHostConn(conn) {
   conn.ev = []; conn.ent = null; conn.pname = ''; conn.pav = ''; conn.lootSig = null;
-  conn.on('data', m => {
+  conn.on('data', raw => {
+    const m = netRecv(conn, raw);
     if (!m || typeof m !== 'object') return;
     if (m.t === 'hello') {
       if (!net.conns.includes(conn)) {
-        if (net.conns.length + 1 >= MAX_PLAYERS) { try { conn.send({ t: 'full' }); } catch (e) {} setTimeout(() => conn.close(), 500); return; }
+        if (net.conns.length + 1 >= MAX_PLAYERS) { try { netSend(conn, { t: 'full' }); } catch (e) {} setTimeout(() => conn.close(), 500); return; }
         net.conns.push(conn);
       }
       conn.pname = String(m.name || 'Jugador').slice(0, 12);
       conn.pav = cleanAv(m.av);
       hostLobbyUpdate();
-      if (state === 'play' || state === 'over') { try { conn.send({ t: 'wait' }); } catch (e) {} }
+      if (state === 'play' || state === 'over') { try { netSend(conn, { t: 'wait' }); } catch (e) {} }
     } else if (m.t === 'in' && conn.ent && ents.includes(conn.ent)) hostApplyInput(conn.ent, m);
   });
   conn.on('close', () => hostDropConn(conn));
@@ -2344,7 +2379,7 @@ function hostLobbyUpdate() {
   net.lobby = [getName()].concat(net.conns.map(c => c.pname));
   net.lobbyAv = [myAv].concat(net.conns.map(c => c.pav || ''));
   renderLobby();
-  for (const c of net.conns) { try { c.send({ t: 'lobby', names: net.lobby, avs: net.lobbyAv }); } catch (e) {} }
+  for (const c of net.conns) { try { netSend(c, { t: 'lobby', names: net.lobby, avs: net.lobbyAv }); } catch (e) {} }
 }
 function packMap() {
   return {
@@ -2380,7 +2415,7 @@ function hostStartGame() {
   net.round++;
   for (const c of conns) {
     if (!c.ent) continue;
-    try { c.send({ t: 'start', rd: net.round, map, plane: pl, names, colors, humans, avs, you: c.ent.id, diff: $('diff').value }); } catch (e) {}
+    try { netSend(c, { t: 'start', rd: net.round, map, plane: pl, names, colors, humans, avs, you: c.ent.id, diff: $('diff').value }); } catch (e) {}
   }
   net.sendAcc = 0;
 }
@@ -2427,7 +2462,7 @@ function hostTick(dt) {
       msg.l = packedLoot; c.lootSig = sig;
     }
     c.ev = [];
-    try { c.send(msg); } catch (err) {}
+    try { netSend(c, msg); } catch (err) {}
   }
   net.bev = [];
 }
@@ -2441,25 +2476,57 @@ function joinRoom() {
   const peer = new Peer(undefined, peerOpts());
   net.role = 'client'; net.peer = peer; net.code = code; net.lobby = [];
   showLobby(); lobbyMsg('Conectando con la sala…');
-  peer.on('open', () => {
-    if (net.peer !== peer) return;
-    const conn = peer.connect(PEER_PREFIX + code, { reliable: true, serialization: 'json' });
-    net.host = conn;
-    const to = setTimeout(() => { if (net.host === conn && !conn.open) lobbyMsg('No se pudo conectar. Comprueba el código o prueba con wifi.'); }, 12000);
-    conn.on('open', () => {
-      clearTimeout(to); net.lastMsg = performance.now();
-      try { conn.send({ t: 'hello', name: getName(), av: myAv }); } catch (e) {}
-      lobbyMsg('¡Conectado! Esperando a que el anfitrión empiece…');
-    });
-    conn.on('data', m => { net.lastMsg = performance.now(); clientOnData(m); });
-    conn.on('close', () => { if (net.host === conn) hostGone('El anfitrión cerró la sala.'); });
-    conn.on('error', () => { if (net.host === conn) hostGone('Se perdió la conexión con el anfitrión.'); });
-  });
+  net.noRoom = false;
+  peer.on('open', () => { if (net.peer === peer) connectToHost(peer, code, 1); });
   peer.on('error', err => {
     if (net.peer !== peer || state === 'play' || state === 'over') return;
+    if (err && err.type === 'peer-unavailable') { net.noRoom = true; net.host = null; }
     lobbyMsg(peerErrorText(err));
   });
 }
+// Intenta conectar con el anfitrión; si no lo logra, reintenta y al final explica la causa
+const JOIN_TRIES = 3, JOIN_WAIT = 10000;
+function connectToHost(peer, code, attempt) {
+  if (net.peer !== peer || net.role !== 'client') return;
+  const conn = peer.connect(PEER_PREFIX + code, { reliable: true, serialization: 'json' });
+  net.host = conn;
+  let ok = false, done = false;
+  const fail = () => {
+    if (ok || done || net.host !== conn || net.noRoom) return;
+    done = true; clearTimeout(to);
+    const pc = conn.peerConnection;
+    const answered = !!(pc && pc.remoteDescription), ice = pc ? pc.iceConnectionState : 'sin-conexion';
+    try { conn.close(); } catch (e) {}
+    if (attempt < JOIN_TRIES) {
+      lobbyMsg(`Reintentando conexión (${attempt + 1}/${JOIN_TRIES})…`);
+      setTimeout(() => connectToHost(peer, code, attempt + 1), 800);
+      return;
+    }
+    net.host = null;
+    lobbyMsg(answered
+      ? `La sala respondió, pero la red no deja conectar los teléfonos entre sí. Prueba con datos móviles en uno de los dos. (código RED-${ice})`
+      : 'El anfitrión no respondió. Pídele que tenga el juego abierto en pantalla (no en WhatsApp) y vuelve a intentarlo: Salir → Unirse. (código ANF)');
+  };
+  const to = setTimeout(fail, JOIN_WAIT);
+  setTimeout(() => {
+    const pc = conn.peerConnection;
+    if (pc) pc.addEventListener('iceconnectionstatechange', () => { if (pc.iceConnectionState === 'failed') fail(); });
+  }, 0);
+  conn.on('open', () => {
+    if (net.host !== conn || done) return;
+    ok = true; clearTimeout(to); net.lastMsg = performance.now();
+    try { netSend(conn, { t: 'hello', name: getName(), av: myAv }); } catch (e) {}
+    lobbyMsg('¡Conectado! Esperando a que el anfitrión empiece…');
+  });
+  conn.on('data', raw => { if (net.host === conn) { net.lastMsg = performance.now(); const m = netRecv(conn, raw); if (m) clientOnData(m); } });
+  conn.on('close', () => { if (net.host === conn) { if (ok) hostGone('El anfitrión cerró la sala.'); else fail(); } });
+  conn.on('error', () => { if (net.host === conn) { if (ok) hostGone('Se perdió la conexión con el anfitrión.'); else fail(); } });
+}
+// Al volver al juego desde otra app (p. ej. WhatsApp), reconecta con el servidor de salas
+document.addEventListener('visibilitychange', () => {
+  const p = net.peer;
+  if (document.visibilityState === 'visible' && p && p.disconnected && !p.destroyed) { try { p.reconnect(); } catch (e) {} }
+});
 function clientOnData(m) {
   if (!m || typeof m !== 'object') return;
   if (m.t === 'lobby') {
@@ -2623,7 +2690,7 @@ function clientSendInput(dt) {
   const c = net.host, p = player;
   if (!c || !c.open || !p) return;
   try {
-    c.send({ t: 'in', x: r0(p.x), y: r0(p.y), a: r2(p.ang), mv: p.moving ? 1 : 0, sp: p.sprint ? 1 : 0, d: mouse.down && !paused ? 1 : 0, q: net.actions });
+    netSend(c, { t: 'in', x: r0(p.x), y: r0(p.y), a: r2(p.ang), mv: p.moving ? 1 : 0, sp: p.sprint ? 1 : 0, d: mouse.down && !paused ? 1 : 0, q: net.actions });
   } catch (e) {}
   net.actions = [];
 }
@@ -2753,6 +2820,11 @@ $('again').onclick = () => { if (net.role === 'host') hostStartGame(); else if (
 $('toMenu').onclick = () => { leaveRoom(); toMenu(); };
 $('resume').onclick = () => setPause(false);
 $('quit').onclick = () => { leaveRoom(); toMenu(); };
+$('updateBtn').onclick = () => {
+  if ((state === 'play' || net.role !== 'solo') && !confirm('Actualizar ahora te saca de la partida o de la sala. ¿Seguir?')) return;
+  location.reload();
+};
+$('updateX').onclick = () => $('update').classList.add('hidden');
 $('avBtn').onclick = () => $('avFile').click();
 $('avFile').onchange = e => { const f = e.target.files && e.target.files[0]; if (f) loadAvFile(f); e.target.value = ''; };
 $('avDel').onclick = () => setMyAv('');
@@ -2794,14 +2866,10 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
   });
-  // Cuando llega una versión nueva del juego, recarga una vez (solo si no estás en medio de una partida)
+  // Cuando llega una versión nueva del juego, avisa con un botón (nunca recarga sola: cortaría salas y partidas)
   const hadSW = !!navigator.serviceWorker.controller;
-  let swReloaded = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!hadSW || swReloaded) return;
-    swReloaded = true;
-    const tryReload = () => { if (state === 'menu') location.reload(); else setTimeout(tryReload, 3000); };
-    tryReload();
+    if (hadSW) $('update').classList.remove('hidden');
   });
 }
 
