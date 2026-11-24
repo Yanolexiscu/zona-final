@@ -86,6 +86,15 @@
   .spec .who { min-width: 0; text-align: center; padding: 0 6px; line-height: 1.2; }
   .spec .who b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .spec .who span { font-size: .8rem; color: var(--muted); white-space: nowrap; }
+  .av { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; flex: none; vertical-align: middle; }
+  .av[hidden] { display: none; }
+  .av-btn { width: 52px; height: 52px; padding: 0; border-radius: 50%; overflow: hidden; flex: none;
+    background: #1b1f3b; border: 2px dashed var(--accent); font-size: 1.4rem; display: grid; place-items: center; }
+  .av-btn.has { border-style: solid; }
+  .av-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .av-btn img[hidden], .av-btn span[hidden], .av-del[hidden] { display: none; }
+  .av-del { padding: 6px 11px; font-size: .9rem; }
+  .plist li { display: flex; align-items: center; gap: 10px; }
 </style>
 </head>
 <body>
@@ -124,7 +133,12 @@
         <option value="dificil">Difícil (30 bots)</option>
       </select>
     </div>
-    <div class="row"><input class="txt" id="pname" maxlength="12" placeholder="Tu nombre" autocomplete="off"></div>
+    <div class="row">
+      <button class="av-btn" id="avBtn" type="button" aria-label="Elegir foto de perfil" title="Foto de perfil"><span id="avPh">📷</span><img id="avImg" alt="" hidden></button>
+      <input class="txt" id="pname" maxlength="12" placeholder="Tu nombre" autocomplete="off">
+      <button class="sec av-del" id="avDel" type="button" aria-label="Quitar foto" title="Quitar foto" hidden>✕</button>
+      <input type="file" id="avFile" accept="image/*" hidden>
+    </div>
     <button id="play">Jugar solo</button>
     <div class="mp">
       <div class="mp-title">👥 Jugar con amigos</div>
@@ -188,6 +202,7 @@
 <!-- Modo espectador: aparece al morir mientras la partida sigue -->
 <div class="spec hidden" id="spec">
   <button class="sec" id="specPrev" aria-label="Jugador anterior">◀</button>
+  <img class="av" id="specAv" alt="" hidden>
   <div class="who"><b id="specName">👁 Observando</b><span id="specInfo"></span></div>
   <button class="sec" id="specNext" aria-label="Jugador siguiente">▶</button>
   <button id="specSkip">Resultados</button>
@@ -671,7 +686,7 @@ function spawnEnts(humans = [{ name: 'Tú' }]) {
     const e = h
       ? makeEnt(i === 0, h.name, HUMAN_COLORS[i % HUMAN_COLORS.length])
       : makeEnt(false, names[i % names.length], `hsl(${Math.floor(rand(0, 360))},55%,58%)`);
-    e.id = i; e.human = !!h; e.conn = (h && h.conn) || null;
+    e.id = i; e.human = !!h; e.conn = (h && h.conn) || null; e.av = (h && cleanAv(h.av)) || '';
     if (h && h.conn) h.conn.ent = e;
     if (!h) {
       e.land = pickLanding();
@@ -1467,10 +1482,14 @@ function drawEnt(e) {
     }
   }
   ctx.restore();
-  ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
-  ctx.fillStyle = e.hitT > 0 ? '#ffffff' : e.color; ctx.fill();
-  ctx.lineWidth = e.isPlayer ? 3 : 2; ctx.strokeStyle = e.isPlayer ? '#ffffff' : 'rgba(0,0,0,.55)'; ctx.stroke();
-  ctx.beginPath(); ctx.arc(e.x - 5, e.y - 5, e.r * 0.45, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fill();
+  const im = avImg(e.av);
+  if (im) drawAvatarBody(e, e.x, e.y, im);
+  else {
+    ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
+    ctx.fillStyle = e.hitT > 0 ? '#ffffff' : e.color; ctx.fill();
+    ctx.lineWidth = e.isPlayer ? 3 : 2; ctx.strokeStyle = e.isPlayer ? '#ffffff' : 'rgba(0,0,0,.55)'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(e.x - 5, e.y - 5, e.r * 0.45, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fill();
+  }
   if (e.armor > 0) {
     ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 4, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * e.armor / 100);
     ctx.strokeStyle = '#63b3ed'; ctx.lineWidth = 3; ctx.stroke();
@@ -1486,6 +1505,18 @@ function drawEnt(e) {
   }
   if (e.human && !e.isPlayer) txt(e.name, e.x, e.y - e.r - 24, 12, e.color, 'center', 800);
 }
+// Cuerpo con foto de perfil: la foto recortada en círculo y un aro del color del jugador
+function drawAvatarBody(e, x, y, im) {
+  ctx.save();
+  ctx.beginPath(); ctx.arc(x, y, e.r, 0, Math.PI * 2); ctx.closePath();
+  ctx.fillStyle = e.color; ctx.fill();
+  ctx.clip();
+  ctx.drawImage(im, x - e.r, y - e.r, e.r * 2, e.r * 2);
+  if (e.hitT > 0) { ctx.fillStyle = 'rgba(255,255,255,.65)'; ctx.fill(); }
+  ctx.restore();
+  ctx.beginPath(); ctx.arc(x, y, e.r, 0, Math.PI * 2);
+  ctx.lineWidth = 3; ctx.strokeStyle = e.isPlayer ? '#ffffff' : e.color; ctx.stroke();
+}
 function drawGlider(e) {
   const k = clamp(e.glideT / GLIDE, 0, 1), h = k * 150, s = 1 + k * 0.55;
   ctx.beginPath(); ctx.arc(e.x, e.y, e.r * (1 - k * 0.4), 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fill();
@@ -1499,8 +1530,12 @@ function drawGlider(e) {
   for (let i = -3; i <= 3; i += 2) ctx.fillRect(i * 10 - 5, -60, 10, 22);
   ctx.restore();
   ctx.strokeStyle = 'rgba(0,0,0,.4)'; ctx.lineWidth = 1.5; ctx.stroke();
-  ctx.beginPath(); ctx.arc(0, 0, e.r, 0, Math.PI * 2); ctx.fillStyle = e.color; ctx.fill();
-  ctx.strokeStyle = e.isPlayer ? '#fff' : 'rgba(0,0,0,.5)'; ctx.lineWidth = e.isPlayer ? 3 : 2; ctx.stroke();
+  const im = avImg(e.av);
+  if (im) drawAvatarBody(e, 0, 0, im);
+  else {
+    ctx.beginPath(); ctx.arc(0, 0, e.r, 0, Math.PI * 2); ctx.fillStyle = e.color; ctx.fill();
+    ctx.strokeStyle = e.isPlayer ? '#fff' : 'rgba(0,0,0,.5)'; ctx.lineWidth = e.isPlayer ? 3 : 2; ctx.stroke();
+  }
   ctx.restore();
   if (e.isPlayer) txt('Tú', e.x, e.y - h - 80 * s, 14, '#ffd34d', 'center', 800);
   else if (e.human) txt(e.name, e.x, e.y - h - 80 * s, 13, e.color, 'center', 800);
@@ -2052,7 +2087,7 @@ function startGame(humans) {
   resetRound();
   enterPlay();
 }
-function newGame() { startGame([{ name: 'Tú' }]); }
+function newGame() { startGame([{ name: 'Tú', av: myAv }]); }
 function endGame(win) {
   if (state !== 'play') return;
   state = 'over';
@@ -2097,8 +2132,12 @@ function specTick() {
   if (!spectate || !spectate.alive || spectate.air === 'plane') spectate = specPick(spectate);
   const name = spectate ? spectate.name : '—';
   const info = spectate ? `❤️ ${Math.ceil(Math.max(0, spectate.hp))} · 👥 ${alive.length} vivos` : `👥 ${alive.length} vivos`;
-  const label = name + '|' + info;
-  if (label !== specLabel) { specLabel = label; $('specName').textContent = `👁 ${name}`; $('specInfo').textContent = info; }
+  const label = name + '|' + info + '|' + (spectate ? spectate.id : -1);
+  if (label !== specLabel) {
+    specLabel = label; $('specName').textContent = `👁 ${name}`; $('specInfo').textContent = info;
+    const av = $('specAv'), src = spectate && spectate.av;
+    if (src) { if (av.getAttribute('src') !== src) av.src = src; av.hidden = false; } else av.hidden = true;
+  }
 }
 function finishSpectate(winner, delay) {
   if (!specMode) return;
@@ -2163,6 +2202,44 @@ function getName() {
   try { localStorage.setItem('zf-name', v); } catch (e) {}
   return v || 'Jugador';
 }
+/* ---------- Foto de perfil ---------- */
+// Se guarda en el teléfono como JPEG pequeño (96×96) y viaja con el nombre al entrar a una sala.
+const AV_SIZE = 96, AV_MAX = 40000;
+const cleanAv = v => typeof v === 'string' && v.length <= AV_MAX && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v) ? v : '';
+let myAv = '';
+try { myAv = cleanAv(localStorage.getItem('zf-avatar')); } catch (e) {}
+const avCache = new Map();
+function avImg(src) {
+  if (!src) return null;
+  let im = avCache.get(src);
+  if (!im) { im = new Image(); im.src = src; avCache.set(src, im); }
+  return im.complete && im.naturalWidth ? im : null;
+}
+function showMyAv() {
+  $('avImg').hidden = !myAv; if (myAv) $('avImg').src = myAv;
+  $('avPh').hidden = !!myAv; $('avDel').hidden = !myAv;
+  $('avBtn').classList.toggle('has', !!myAv);
+}
+function setMyAv(v) {
+  myAv = cleanAv(v);
+  try { if (myAv) localStorage.setItem('zf-avatar', myAv); else localStorage.removeItem('zf-avatar'); } catch (e) {}
+  showMyAv();
+}
+function loadAvFile(file) {
+  if (!file || !/^image\//.test(file.type || 'image/')) { menuMsg('Ese archivo no es una imagen.'); return; }
+  const url = URL.createObjectURL(file), im = new Image();
+  im.onload = () => {
+    URL.revokeObjectURL(url);
+    const c = document.createElement('canvas'); c.width = c.height = AV_SIZE;
+    const s = Math.min(im.naturalWidth, im.naturalHeight);
+    c.getContext('2d').drawImage(im, (im.naturalWidth - s) / 2, (im.naturalHeight - s) / 2, s, s, 0, 0, AV_SIZE, AV_SIZE);
+    let q = 0.82, data = c.toDataURL('image/jpeg', q);
+    while (data.length > AV_MAX && q > 0.3) { q -= 0.15; data = c.toDataURL('image/jpeg', q); }
+    setMyAv(data); menuMsg(myAv ? '' : 'No se pudo usar esa foto. Prueba con otra.');
+  };
+  im.onerror = () => { URL.revokeObjectURL(url); menuMsg('No se pudo abrir esa foto. Prueba con otra.'); };
+  im.src = url;
+}
 function menuMsg(t) { $('menuMsg').textContent = t || ''; }
 function lobbyMsg(t) { $('lobbyMsg').textContent = t || ''; }
 function peerOpts() {
@@ -2196,11 +2273,16 @@ function renderLobby() {
   $('lobbyCode').textContent = net.code || '····';
   const ul = $('lobbyList');
   ul.innerHTML = '';
-  net.lobby.forEach((n, i) => { const li = document.createElement('li'); li.textContent = (i === 0 ? '👑 ' : '🎮 ') + n; ul.appendChild(li); });
+  net.lobby.forEach((n, i) => {
+    const li = document.createElement('li'), av = (net.lobbyAv || [])[i];
+    if (av) { const im = document.createElement('img'); im.className = 'av'; im.alt = ''; im.src = av; li.appendChild(im); }
+    li.appendChild(document.createTextNode((i === 0 ? '👑 ' : '🎮 ') + n));
+    ul.appendChild(li);
+  });
 }
 function leaveRoom() {
   const p = net.peer, wasClient = net.role === 'client';
-  net.role = 'solo'; net.peer = null; net.conns = []; net.host = null; net.code = ''; net.lobby = []; net.bev = []; net.actions = [];
+  net.role = 'solo'; net.peer = null; net.conns = []; net.host = null; net.code = ''; net.lobby = []; net.lobbyAv = []; net.bev = []; net.actions = [];
   if (p) { try { p.destroy(); } catch (e) {} }
   $('lobby').classList.add('hidden');
   // la copia del invitado no puede seguir la partida sola: vuelve al menú
@@ -2218,7 +2300,7 @@ function createRoom(tries = 0) {
   let code = '';
   for (let i = 0; i < 4; i++) code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
   const peer = new Peer(PEER_PREFIX + code, peerOpts());
-  net.role = 'host'; net.peer = peer; net.lobby = [getName()];
+  net.role = 'host'; net.peer = peer; net.lobby = [getName()]; net.lobbyAv = [myAv];
   showLobby(); lobbyMsg('Creando sala…');
   peer.on('open', () => { if (net.peer !== peer) return; net.code = code; showLobby(); lobbyMsg('Esperando a tus amigos…'); });
   peer.on('connection', conn => { if (net.peer === peer) setupHostConn(conn); });
@@ -2231,7 +2313,7 @@ function createRoom(tries = 0) {
   });
 }
 function setupHostConn(conn) {
-  conn.ev = []; conn.ent = null; conn.pname = ''; conn.lootSig = null;
+  conn.ev = []; conn.ent = null; conn.pname = ''; conn.pav = ''; conn.lootSig = null;
   conn.on('data', m => {
     if (!m || typeof m !== 'object') return;
     if (m.t === 'hello') {
@@ -2240,6 +2322,7 @@ function setupHostConn(conn) {
         net.conns.push(conn);
       }
       conn.pname = String(m.name || 'Jugador').slice(0, 12);
+      conn.pav = cleanAv(m.av);
       hostLobbyUpdate();
       if (state === 'play' || state === 'over') { try { conn.send({ t: 'wait' }); } catch (e) {} }
     } else if (m.t === 'in' && conn.ent && ents.includes(conn.ent)) hostApplyInput(conn.ent, m);
@@ -2257,8 +2340,9 @@ function hostDropConn(conn) {
 }
 function hostLobbyUpdate() {
   net.lobby = [getName()].concat(net.conns.map(c => c.pname));
+  net.lobbyAv = [myAv].concat(net.conns.map(c => c.pav || ''));
   renderLobby();
-  for (const c of net.conns) { try { c.send({ t: 'lobby', names: net.lobby }); } catch (e) {} }
+  for (const c of net.conns) { try { c.send({ t: 'lobby', names: net.lobby, avs: net.lobbyAv }); } catch (e) {} }
 }
 function packMap() {
   return {
@@ -2286,14 +2370,15 @@ function hostStartGame() {
   if (!net.code) { lobbyMsg('Espera a que la sala termine de crearse…'); return; }
   const conns = net.conns.filter(c => c.open && c.pname);
   net.conns.forEach(c => { c.ent = null; c.ev = []; c.lootSig = null; });
-  startGame([{ name: getName() }].concat(conns.map(c => ({ name: c.pname, conn: c }))));
+  startGame([{ name: getName(), av: myAv }].concat(conns.map(c => ({ name: c.pname, av: c.pav, conn: c }))));
   const map = packMap();
   const pl = { x0: r1(plane.x0), y0: r1(plane.y0), x1: r1(plane.x1), y1: r1(plane.y1), ang: r2(plane.ang), dur: plane.dur };
   const names = ents.map(e => e.name), colors = ents.map(e => e.color), humans = ents.filter(e => e.human).map(e => e.id);
+  const avs = ents.map(e => e.av || '');
   net.round++;
   for (const c of conns) {
     if (!c.ent) continue;
-    try { c.send({ t: 'start', rd: net.round, map, plane: pl, names, colors, humans, you: c.ent.id, diff: $('diff').value }); } catch (e) {}
+    try { c.send({ t: 'start', rd: net.round, map, plane: pl, names, colors, humans, avs, you: c.ent.id, diff: $('diff').value }); } catch (e) {}
   }
   net.sendAcc = 0;
 }
@@ -2361,7 +2446,7 @@ function joinRoom() {
     const to = setTimeout(() => { if (net.host === conn && !conn.open) lobbyMsg('No se pudo conectar. Comprueba el código o prueba con wifi.'); }, 12000);
     conn.on('open', () => {
       clearTimeout(to); net.lastMsg = performance.now();
-      try { conn.send({ t: 'hello', name: getName() }); } catch (e) {}
+      try { conn.send({ t: 'hello', name: getName(), av: myAv }); } catch (e) {}
       lobbyMsg('¡Conectado! Esperando a que el anfitrión empiece…');
     });
     conn.on('data', m => { net.lastMsg = performance.now(); clientOnData(m); });
@@ -2375,7 +2460,11 @@ function joinRoom() {
 }
 function clientOnData(m) {
   if (!m || typeof m !== 'object') return;
-  if (m.t === 'lobby') { net.lobby = Array.isArray(m.names) ? m.names : []; renderLobby(); }
+  if (m.t === 'lobby') {
+    net.lobby = Array.isArray(m.names) ? m.names : [];
+    net.lobbyAv = Array.isArray(m.avs) ? m.avs.map(cleanAv) : [];
+    renderLobby();
+  }
   else if (m.t === 'wait') lobbyMsg('Hay una partida en curso. Entrarás en la siguiente.');
   else if (m.t === 'full') hostGone('La sala está llena.');
   else if (m.t === 'start') { net.round = m.rd; clientStart(m); }
@@ -2388,6 +2477,7 @@ function clientStart(m) {
   ents = m.names.map((name, i) => {
     const e = makeEnt(i === m.you, name, m.colors[i]);
     e.id = i; e.human = m.humans.includes(i);
+    e.av = e.human && Array.isArray(m.avs) ? cleanAv(m.avs[i]) : '';
     return e;
   });
   player = ents[m.you]; net.myId = m.you; totalPlayers = ents.length;
@@ -2661,6 +2751,10 @@ $('again').onclick = () => { if (net.role === 'host') hostStartGame(); else if (
 $('toMenu').onclick = () => { leaveRoom(); toMenu(); };
 $('resume').onclick = () => setPause(false);
 $('quit').onclick = () => { leaveRoom(); toMenu(); };
+$('avBtn').onclick = () => $('avFile').click();
+$('avFile').onchange = e => { const f = e.target.files && e.target.files[0]; if (f) loadAvFile(f); e.target.value = ''; };
+$('avDel').onclick = () => setMyAv('');
+showMyAv();
 $('specPrev').onclick = () => specCycle(-1);
 $('specNext').onclick = () => specCycle(1);
 $('specSkip').onclick = () => finishSpectate(null, 0);
