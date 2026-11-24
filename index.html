@@ -104,6 +104,13 @@
   <div class="card">
     <h1>🎯 Zona <span>Final</span></h1>
     <p>Battle royale offline: tú contra bots. Salta del avión, consigue armas, sobrevive a la zona y sé el último en pie.</p>
+    <div class="row">
+      <button class="av-btn" id="avBtn" type="button" aria-label="Elegir foto de perfil" title="Foto de perfil"><span id="avPh">📷</span><img id="avImg" alt="" hidden></button>
+      <input class="txt" id="pname" maxlength="12" placeholder="Tu nombre" autocomplete="off">
+      <button class="sec av-del" id="avDel" type="button" aria-label="Quitar foto" title="Quitar foto" hidden>✕</button>
+      <input type="file" id="avFile" accept="image/*" hidden>
+    </div>
+    <p class="stats" id="avHint" style="margin:-8px 0 14px">📷 Toca el círculo para poner tu foto de perfil</p>
     <div class="controls touch-only">
       <kbd>Toca</kbd><span>Saltar del avión</span>
       <kbd>🕹️ Izquierda</kbd><span>Moverte · al borde: correr</span>
@@ -132,12 +139,6 @@
         <option value="normal" selected>Normal (25 bots)</option>
         <option value="dificil">Difícil (30 bots)</option>
       </select>
-    </div>
-    <div class="row">
-      <button class="av-btn" id="avBtn" type="button" aria-label="Elegir foto de perfil" title="Foto de perfil"><span id="avPh">📷</span><img id="avImg" alt="" hidden></button>
-      <input class="txt" id="pname" maxlength="12" placeholder="Tu nombre" autocomplete="off">
-      <button class="sec av-del" id="avDel" type="button" aria-label="Quitar foto" title="Quitar foto" hidden>✕</button>
-      <input type="file" id="avFile" accept="image/*" hidden>
     </div>
     <button id="play">Jugar solo</button>
     <div class="mp">
@@ -2219,6 +2220,7 @@ function showMyAv() {
   $('avImg').hidden = !myAv; if (myAv) $('avImg').src = myAv;
   $('avPh').hidden = !!myAv; $('avDel').hidden = !myAv;
   $('avBtn').classList.toggle('has', !!myAv);
+  $('avHint').hidden = !!myAv;
 }
 function setMyAv(v) {
   myAv = cleanAv(v);
@@ -2789,7 +2791,18 @@ requestAnimationFrame(frame);
 
 // App instalable (PWA): guarda el juego en el teléfono para abrirlo sin conexión
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
+  });
+  // Cuando llega una versión nueva del juego, recarga una vez (solo si no estás en medio de una partida)
+  const hadSW = !!navigator.serviceWorker.controller;
+  let swReloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadSW || swReloaded) return;
+    swReloaded = true;
+    const tryReload = () => { if (state === 'menu') location.reload(); else setTimeout(tryReload, 3000); };
+    tryReload();
+  });
 }
 
 </script>
