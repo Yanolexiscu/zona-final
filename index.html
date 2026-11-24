@@ -78,6 +78,14 @@
   .res div { background: #1b1f3b; border-radius: 10px; padding: 10px; }
   .res b { display: block; font-size: 1.4rem; color: var(--accent); }
   .res span { font-size: .8rem; color: var(--muted); }
+  .spec { position: fixed; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateX(-50%);
+    display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 999px; padding: 6px; max-width: calc(100vw - 32px); box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+  .spec.hidden { display: none; }
+  .spec button { padding: 9px 16px; font-size: 1rem; flex: none; }
+  .spec .who { min-width: 0; text-align: center; padding: 0 6px; line-height: 1.2; }
+  .spec .who b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .spec .who span { font-size: .8rem; color: var(--muted); white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -177,6 +185,14 @@
   </div>
 </div>
 
+<!-- Modo espectador: aparece al morir mientras la partida sigue -->
+<div class="spec hidden" id="spec">
+  <button class="sec" id="specPrev" aria-label="Jugador anterior">◀</button>
+  <div class="who"><b id="specName">👁 Observando</b><span id="specInfo"></span></div>
+  <button class="sec" id="specNext" aria-label="Jugador siguiente">▶</button>
+  <button id="specSkip">Resultados</button>
+</div>
+
 <!-- Librería para conectar dispositivos entre sí (solo se usa en el multijugador) -->
 <script async src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"
   onerror="var s=document.createElement('script');s.async=true;s.src='https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';document.head.appendChild(s)"></script>
@@ -264,6 +280,7 @@ let ground = null, mini = null, plane = null, announce = null, visPoly = null;
 let time = 0, state = 'menu', paused = false, diff = DIFFS.normal, showMap = false;
 let cam = { x: WORLD / 2, y: WORLD / 2, z: 0.7 }, hitMarker = 0, killMarker = 0, hurtFlash = 0;
 let spectate = null, totalPlayers = 0, dmgDealt = 0, lastCursor = '';
+let specMode = false, specLabel = '', resToken = 0;
 const keys = {}, mouse = { x: 0, y: 0, down: false, pressed: false };
 // Controles táctiles: joysticks flotantes (izquierda = mover, derecha = apuntar/disparar)
 const STICK_R = 60, BTN_R = 28;
@@ -1362,7 +1379,7 @@ function updateFx(dt) {
 const baseZoom = () => clamp(Math.min(VW / 1300, VH / 800), 0.6, 1.1);
 function focusEnt() {
   if (player.alive) return player.air === 'plane' ? null : player;
-  return spectate && spectate.alive && spectate.air === 'ground' ? spectate : null;
+  return spectate && spectate.alive && spectate.air !== 'plane' ? spectate : null;
 }
 function updateCamera(dt) {
   let zt = baseZoom();
@@ -1831,7 +1848,7 @@ function drawHUD() {
   }
 
   if (!p.alive) {
-    if (spectate && spectate.alive) txt(`Observando a ${spectate.name}`, VW / 2, VH - 40, 16, '#eef0ff', 'center', 700);
+    if (!specMode && spectate && spectate.alive) txt(`Observando a ${spectate.name}`, VW / 2, VH - 40, 16, '#eef0ff', 'center', 700);
     if (showMap) drawBigMap();
     return;
   }
@@ -2011,6 +2028,7 @@ function resetRound() {
   bullets = []; particles = []; feed = []; nades = []; blasts = []; drops = []; floats = []; indicators = [];
   shake = 0; announce = null; visPoly = null;
   time = 0; dmgDealt = 0; spectate = null; hitMarker = killMarker = hurtFlash = 0;
+  specMode = false; specLabel = ''; resToken++; $('spec').classList.add('hidden');
   mouse.down = mouse.pressed = false; showMap = false;
   touch.move = touch.aim = null;
   for (const k in keys) keys[k] = false;
@@ -2045,13 +2063,61 @@ function endGame(win) {
     localStorage.setItem('zf-stats', JSON.stringify(s));
   } catch (e) {}
   if (win) sfx.win(); else sfx.lose();
+  if (win) { showResult(true, null, 900); return; }
+  // Has muerto: modo espectador hasta que termine la partida (specTick decide cuándo acaba)
+  specMode = true; specLabel = '';
+  if (!spectate || !spectate.alive) spectate = specPick(null);
+  $('spec').classList.remove('hidden');
+  specTick();
+}
+/* ---------- Modo espectador ---------- */
+const specList = () => ents.filter(e => e.alive && e !== player && e.air !== 'plane');
+function specPick(prev) {
+  const c = specList();
+  if (!c.length) return null;
+  if (prev && prev.killer && prev.killer !== prev && c.includes(prev.killer)) return prev.killer;
+  const friends = c.filter(e => e.human);
+  const pool = friends.length ? friends : c;
+  let best = pool[0], bd = Infinity;
+  for (const e of pool) { const d = dist(e.x, e.y, cam.x, cam.y); if (d < bd) { bd = d; best = e; } }
+  return best;
+}
+function specCycle(dir) {
+  if (!specMode) return;
+  const c = specList();
+  if (!c.length) return;
+  const i = c.indexOf(spectate);
+  spectate = c[i < 0 ? 0 : (i + dir + c.length) % c.length];
+  specTick();
+}
+function specTick() {
+  if (!specMode || state !== 'over') return;
+  const alive = ents.filter(e => e.alive);
+  if (alive.length <= 1) { finishSpectate(alive[0] || null, 2200); return; }
+  if (!spectate || !spectate.alive || spectate.air === 'plane') spectate = specPick(spectate);
+  const name = spectate ? spectate.name : '—';
+  const info = spectate ? `❤️ ${Math.ceil(Math.max(0, spectate.hp))} · 👥 ${alive.length} vivos` : `👥 ${alive.length} vivos`;
+  const label = name + '|' + info;
+  if (label !== specLabel) { specLabel = label; $('specName').textContent = `👁 ${name}`; $('specInfo').textContent = info; }
+}
+function finishSpectate(winner, delay) {
+  if (!specMode) return;
+  specMode = false; showMap = false;
+  $('spec').classList.add('hidden');
+  if (winner) { spectate = winner; if (winner !== player) pushFeed(`🏆 ${winner.name} ganó la partida`, 6, true); }
+  showResult(false, winner, delay);
+}
+function showResult(win, winner, delay) {
+  const tok = ++resToken;
   setTimeout(() => {
-    if (state !== 'over') return;
+    if (state !== 'over' || tok !== resToken) return;
+    const place = win ? 1 : player.place;
     $('resTitle').textContent = win ? '🏆 ¡VICTORIA!' : '💀 Eliminado';
     $('resTitle').className = 'big ' + (win ? 'win' : 'lose');
-    $('resSub').textContent = win ? '¡Eres el último en pie!'
+    $('resSub').textContent = (win ? '¡Eres el último en pie!'
       : player.killer === player ? 'Tu propia granada acabó contigo.'
-      : player.killer ? `Te eliminó ${player.killer.name}.` : 'La zona acabó contigo.';
+      : player.killer ? `Te eliminó ${player.killer.name}.` : 'La zona acabó contigo.')
+      + (!win && winner && winner !== player ? ` Ganó ${winner.name}.` : '');
     $('resPlace').textContent = `#${place} de ${totalPlayers}`;
     $('resKills').textContent = player.kills;
     $('resTime').textContent = fmtTime(time);
@@ -2065,10 +2131,11 @@ function endGame(win) {
       : net.role === 'host' && friendsAlive ? 'La partida sigue para tus amigos: no cierres esta página.'
       : net.role === 'host' ? 'Pulsa «Nueva partida» para jugar otra con tus amigos.' : '';
     $('result').classList.remove('hidden');
-  }, win ? 900 : 1600);
+  }, delay);
 }
 function toMenu() {
   state = 'menu'; paused = false; showMap = false;
+  specMode = false; resToken++; $('spec').classList.add('hidden');
   ['result', 'pause', 'lobby'].forEach(id => $(id).classList.add('hidden'));
   showStats(); $('menu').classList.remove('hidden');
 }
@@ -2476,6 +2543,11 @@ addEventListener('keydown', e => {
   if (tag === 'INPUT' || tag === 'SELECT') { if (e.key === 'Enter' && e.target.id === 'code') joinRoom(); return; }
   if (e.code === 'Tab') { e.preventDefault(); if (state !== 'menu') showMap = true; return; }
   if (state === 'play' && (e.code === 'Escape' || e.code === 'KeyP')) { setPause(!paused); return; }
+  if (specMode && state === 'over') {
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') { e.preventDefault(); specCycle(-1); return; }
+    if (e.code === 'ArrowRight' || e.code === 'KeyD' || e.code === 'Space') { e.preventDefault(); specCycle(1); return; }
+    if (e.code === 'Escape' || e.code === 'Enter') { finishSpectate(null, 0); return; }
+  }
   if (e.code === 'KeyM') {
     muted = !muted;
     try { localStorage.setItem('zf-mute', muted ? '1' : '0'); } catch (err) {}
@@ -2516,6 +2588,10 @@ cv.addEventListener('pointerdown', e => {
   e.preventDefault();
   lastTouchT = performance.now();
   enableTouch();
+  if (specMode && state === 'over') {
+    if (showMap) showMap = false; else if (inRect(e.clientX, e.clientY, uiRects.minimap)) showMap = true;
+    return;
+  }
   if (!canAct()) return;
   const x = e.clientX, y = e.clientY;
   if (showMap) { showMap = false; return; }
@@ -2585,6 +2661,9 @@ $('again').onclick = () => { if (net.role === 'host') hostStartGame(); else if (
 $('toMenu').onclick = () => { leaveRoom(); toMenu(); };
 $('resume').onclick = () => setPause(false);
 $('quit').onclick = () => { leaveRoom(); toMenu(); };
+$('specPrev').onclick = () => specCycle(-1);
+$('specNext').onclick = () => specCycle(1);
+$('specSkip').onclick = () => finishSpectate(null, 0);
 
 /* ---------- Bucle principal ---------- */
 let lastT = performance.now();
@@ -2598,6 +2677,7 @@ function frame(t) {
     else update(dt);
   }
   if (live && net.role === 'host') hostTick(dt);
+  if (specMode) specTick();
   render(dt);
   requestAnimationFrame(frame);
 }
