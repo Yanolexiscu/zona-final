@@ -1,6 +1,6 @@
 // Service worker de Zona Final: guarda el juego para que abra sin conexión.
 // Cuando cambies index.html, sube el número de versión para que los teléfonos descarguen la nueva.
-const VERSION = 'zf-v19';
+const VERSION = 'zf-v20';
 const SHELL = [
   './',
   './index.html',
@@ -8,7 +8,9 @@ const SHELL = [
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/apple-touch-icon.png',
-  './lib/three.module.min.js'
+  './lib/three.module.min.js',
+  './js/base.js', './js/juego.js', './js/dibujo.js', './js/extras.js',
+  './js/vista3d.js', './js/interfaz.js', './js/red.js', './js/controles.js'
 ];
 
 self.addEventListener('install', (e) => {
@@ -36,6 +38,16 @@ self.addEventListener('fetch', (e) => {
       fetch(req, { cache: 'no-cache' })
         .then((res) => { const copy = res.clone(); caches.open(VERSION).then((c) => c.put('./index.html', copy)); return res; })
         .catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
+
+  // Código del juego (js/): primero la red para que siempre coincida con index.html; sin conexión, la copia guardada.
+  if (url.origin === self.location.origin && /\/js\/[^/]+\.js$/.test(url.pathname)) {
+    e.respondWith(
+      fetch(req, { cache: 'no-cache' })
+        .then((res) => { if (res.ok) { const copy = res.clone(); caches.open(VERSION).then((c) => c.put(req, copy)); } return res; })
+        .catch(() => caches.match(req, { ignoreSearch: true }))
     );
     return;
   }
