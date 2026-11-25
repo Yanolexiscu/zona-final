@@ -202,6 +202,9 @@
         <option value="desierto">🏜️ Desierto</option>
         <option value="nieve">❄️ Nieve</option>
         <option value="ciudad">🏙️ Ciudad</option>
+        <option value="playa">🏝️ Playa</option>
+        <option value="volcan">🌋 Volcán</option>
+        <option value="otono">🍂 Otoño</option>
       </select>
     </div>
     <div class="row" style="margin-bottom:12px">
@@ -266,6 +269,9 @@
         <option value="desierto">🏜️ Desierto</option>
         <option value="nieve">❄️ Nieve</option>
         <option value="ciudad">🏙️ Ciudad</option>
+        <option value="playa">🏝️ Playa</option>
+        <option value="volcan">🌋 Volcán</option>
+        <option value="otono">🍂 Otoño</option>
       </select>
       <label for="lobbyChar">Personaje:</label>
       <select id="lobbyChar"></select>
@@ -371,6 +377,13 @@ const WEAPONS = {
   francotirador: { name: 'Francotirador', dmg: 85, rate: 1.4,   speed: 1900, spread: 0.004, mag: 5,  reload: 2.6, range: 1400, pellets: 1, auto: false, rank: 2, color: '#d2a8ff', len: 32, pref: 650, snd: [800, 0.55] },
   // Solo aparece en los suministros aéreos
   ametralladora: { name: 'Ametralladora', dmg: 17, rate: 0.085, speed: 1150, spread: 0.07,  mag: 60, reload: 3.0, range: 820,  pellets: 1, auto: true,  rank: 3, color: '#ffd700', len: 30, pref: 380, snd: [1800, 0.22] },
+  revolver:      { name: 'Revólver',      dmg: 38, rate: 0.55,  speed: 1050, spread: 0.025, mag: 6,  reload: 1.8, range: 700,  pellets: 1, auto: false, rank: 1, color: '#b0895a', len: 16, pref: 320, snd: [1400, 0.3] },
+  mini:          { name: 'Mini metralleta', dmg: 8, rate: 0.05, speed: 900,  spread: 0.16,  mag: 25, reload: 1.3, range: 420,  pellets: 1, auto: true,  rank: 1, color: '#ff7ab8', len: 15, pref: 180, snd: [3600, 0.09] },
+  tirador:       { name: 'Rifle de tirador', dmg: 42, rate: 0.42, speed: 1500, spread: 0.012, mag: 10, reload: 2.2, range: 1100, pellets: 1, auto: false, rank: 2, color: '#9be7ff', len: 30, pref: 520, snd: [1200, 0.35] },
+  // silenciosa: los bots no oyen sus disparos
+  ballesta:      { name: 'Ballesta',      dmg: 72, rate: 1.0,   speed: 1250, spread: 0.008, mag: 1,  reload: 1.3, range: 1000, pellets: 1, auto: false, rank: 2, color: '#8a5a2b', len: 24, pref: 500, snd: [500, 0.12], silent: true },
+  // el cohete explota al chocar (rara; también sale en los suministros aéreos)
+  lanzacohetes:  { name: 'Lanzacohetes',  dmg: 30, rate: 1.4,   speed: 620,  spread: 0.01,  mag: 1,  reload: 2.8, range: 900,  pellets: 1, auto: false, rank: 3, color: '#5a7a3a', len: 30, pref: 420, snd: [300, 0.5], rocket: true },
 };
 const NADE_R = 150, NADE_DMG = 80, NADE_FUSE = 1.8, NADE_FLY = 0.7, NADE_MAX = 420, DROP_FALL = 8;
 const makeGun = (type, tier = 0) => ({ type, tier, mag: WEAPONS[type].mag });
@@ -408,6 +421,21 @@ const MAPS = {
     dots: ['#5a5e64', '#a0a4aa'], floor: '#b9b2a6', roofs: ['#4a4f5a', '#6b5a4a', '#3d5a6b', '#7a4a4a', '#5a6b4a', '#8a8070'],
     tree: ['#1c4a1b', '#2f6e2b', '#3f8f3a'], bush: ['#2a5a2a', '#3d7a3a', '#56994c'], rock: ['#9a9ea6', '#62666d'],
     lakes: 1, houses: 26, gap: 85, rocks: 18, trees: 30, crates: 60, bushes: 28, city: true },
+  playa: { name: '🏝️ Playa', bg: '#1b6c9c', ground: '#ecd9a0', blobs: ['250,236,190', '214,190,130'], road: ['#b89c6c', '#d8c08c'],
+    shore: '#f6e7b8', water: ['#1e8fc6', '#4cc3e8'], grass: ['rgba(170,140,80,.25)', 'rgba(255,255,255,.35)'], grassN: [1500, 1500],
+    dots: ['#ffffff', '#ffb3c1', '#f5c46b', '#c9b48a'], floor: '#d8c4a0', roofs: ['#2bb3a8', '#ff8a5c', '#ffd34d', '#5c9eff', '#e5484d'],
+    tree: ['#2f6a2a', '#4a9a3a', '#7cc85a'], bush: ['#3d8c3a', '#5aae4c', '#86d46a'], rock: ['#c9bfae', '#8f8676'],
+    lakes: 7, pondR: 1.7, houses: 10, gap: 140, rocks: 35, trees: 60, crates: 30, bushes: 35, palm: true },
+  volcan: { name: '🌋 Volcán', bg: '#120c0a', ground: '#3d3431', blobs: ['70,58,54', '28,22,20'], road: ['#1f1a18', '#2e2724'],
+    shore: '#1a1412', water: ['#c2410c', '#fb8c1f'], grass: ['rgba(10,8,8,.35)', 'rgba(255,120,40,.12)'], grassN: [2500, 1200],
+    dots: ['#ff6a1f', '#6b5a52', '#2a2220'], floor: '#5a4a42', roofs: ['#2a2220', '#4a2a22', '#3a3a3a', '#5a2a1a'],
+    tree: ['#2a2420', '#4a3a30', '#6b5a48'], bush: ['#3a2e28', '#4a3a30', '#6b4a3a'], rock: ['#4a403c', '#221c1a'],
+    lakes: 5, houses: 11, gap: 140, rocks: 90, trees: 35, crates: 30, bushes: 25, lava: true },
+  otono: { name: '🍂 Otoño', bg: '#2a1a10', ground: '#7a8a3e', blobs: ['176,140,60', '110,90,40'], road: ['#6b5032', '#8f7048'],
+    shore: '#c8b98a', water: ['#2f6fa3', '#3b86c4'], grass: ['rgba(80,60,20,.3)', 'rgba(220,170,80,.3)'], grassN: [4000, 3000],
+    dots: ['#e5484d', '#f08c3a', '#ffd34d', '#b85c16'], floor: '#a3865f', roofs: ['#8c3b2e', '#5c4b8a', '#2f6d5a', '#7a5c2e'],
+    tree: ['#7a2a10', '#c4501a', '#f0a030'], bush: ['#8a4a1a', '#b86a2a', '#e0a040'], rock: ['#8f949b', '#5d6268'],
+    lakes: 3, houses: 13, gap: 140, rocks: 50, trees: 90, crates: 30, bushes: 50 },
 };
 const MAP_KEYS = Object.keys(MAPS);
 let mapKey = 'bosque', TH = MAPS.bosque;
@@ -711,8 +739,8 @@ function randomLoot(x, y) {
   const r = Math.random();
   if (r < 0.5) {
     const g = Math.random();
-    const type = g < 0.3 ? 'subfusil' : g < 0.55 ? 'escopeta' : g < 0.85 ? 'rifle' : 'francotirador';
-    return { x, y, kind: 'gun', gun: makeGun(type, rollTier()) };
+    const type = g < 0.18 ? 'subfusil' : g < 0.3 ? 'mini' : g < 0.46 ? 'escopeta' : g < 0.56 ? 'revolver' : g < 0.74 ? 'rifle' : g < 0.83 ? 'tirador' : g < 0.91 ? 'francotirador' : g < 0.97 ? 'ballesta' : 'lanzacohetes';
+    return { x, y, kind: 'gun', gun: makeGun(type, type === 'lanzacohetes' ? 2 : rollTier()) };
   }
   return { x, y, kind: r < 0.68 ? 'med' : r < 0.82 ? 'armor' : r < 0.92 ? 'nade' : 'wall' };
 }
@@ -727,9 +755,10 @@ function genMap(key) {
   // lagos
   for (let i = 0, c = 0; i < 80 && c < TH.lakes; i++) {
     const x = rand(450, WORLD - 450), y = rand(450, WORLD - 450);
-    if (ponds.some(p => dist(p.x, p.y, x, y) < 800)) continue;
+    if (ponds.some(p => dist(p.x, p.y, x, y) < (TH.pondR ? 650 : 800))) continue;
     const n = 3 + Math.floor(Math.random() * 3);
-    for (let k = 0; k < n; k++) ponds.push({ x: x + rand(-110, 110), y: y + rand(-110, 110), r: rand(70, 135) });
+    const pr = TH.pondR || 1;
+    for (let k = 0; k < n; k++) ponds.push({ x: x + rand(-110, 110) * pr, y: y + rand(-110, 110) * pr, r: rand(70, 135) * pr });
     c++;
   }
   // casas
@@ -1040,7 +1069,7 @@ function updateDrops(dt) {
     d.t -= dt;
     if (d.t > 0) continue;
     drops.splice(i, 1);
-    loot.push({ x: d.x, y: d.y - 16, kind: 'gun', gun: makeGun('ametralladora', 3) });
+    loot.push({ x: d.x, y: d.y - 16, kind: 'gun', gun: makeGun(Math.random() < 0.6 ? 'ametralladora' : 'lanzacohetes', 3) });
     loot.push({ x: d.x - 24, y: d.y + 14, kind: 'armor' });
     loot.push({ x: d.x + 24, y: d.y + 14, kind: 'nade' });
     loot.push({ x: d.x, y: d.y + 32, kind: 'nade' });
@@ -1083,17 +1112,17 @@ function explodeFx(x, y) {
   if (pd < 900) tone(90, 0.5, 'sine', 0.25 * (1 - pd / 900), -40);
   shake = Math.max(shake, 0.45 * (1 - Math.min(1, pd / 700)));
 }
-function explode(n) {
+function explode(n, name = 'Granada') {
   explodeFx(n.x, n.y);
   bcast({ k: 'x', x: r0(n.x), y: r0(n.y) });
   for (const e of ents) {
     if (!e.alive || e.air !== 'ground' || e.veh) continue;
     const d = dist(n.x, n.y, e.x, e.y);
     if (d < NADE_R + e.r && los(n.x, n.y, e.x, e.y))
-      damage(e, NADE_DMG * (1 - Math.max(0, d - e.r) / NADE_R), n.owner, 'Granada');
+      damage(e, NADE_DMG * (1 - Math.max(0, d - e.r) / NADE_R), n.owner, name);
   }
   for (const s of shields.slice()) if (dist(n.x, n.y, s.x, s.y) < NADE_R + WALL_LEN / 2) hitShield(s.id, 110);
-  for (const v of vehicles.slice()) if (dist(n.x, n.y, v.x, v.y) < NADE_R + VEH_R) hurtVehicle(v, NADE_DMG * 1.2, n.owner, 'Granada');
+  for (const v of vehicles.slice()) if (dist(n.x, n.y, v.x, v.y) < NADE_R + VEH_R) hurtVehicle(v, NADE_DMG * 1.2, n.owner, name);
   for (const q of rects.slice()) {
     if (q.kind === 'crate' && circleRectHit(n.x, n.y, NADE_R * 0.8, q)) { q.hp -= 60; if (q.hp <= 0) breakCrate(q); }
   }
@@ -1527,15 +1556,15 @@ function tryFire(e) {
   for (let i = 0; i < W.pellets; i++) {
     const a = e.ang + (Math.random() - 0.5) * 2 * W.spread * spreadMul;
     const sp = W.speed * (W.pellets > 1 ? rand(0.85, 1.15) : 1);
-    const b = { x: ox, y: oy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, dmg, owner: e, life: W.range / W.speed, weapon: W.name, tier: g.tier };
+    const b = { x: ox, y: oy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, dmg, owner: e, life: W.range / W.speed, weapon: W.name, tier: g.tier, rk: !!W.rocket };
     bullets.push(b);
     sent.push([r0(b.x), r0(b.y), r0(b.vx), r0(b.vy), r2(b.life)]);
   }
   bcast({ k: 'f', o: e.id, w: GUNS.indexOf(g.type), b: sent });
   const [v, pan] = spatial(e.x, e.y, 1300);
-  noise((e === player ? 0.22 : 0.17) * v, W.snd[0], W.snd[1], e === player ? 0 : pan);
-  // los bots cercanos oyen el disparo
-  if (time - e.noiseT > 0.8) {
+  noise((e === player ? 0.22 : 0.17) * v * (W.silent ? 0.35 : 1), W.snd[0], W.snd[1], e === player ? 0 : pan);
+  // los bots cercanos oyen el disparo (la ballesta no se oye)
+  if (!W.silent && time - e.noiseT > 0.8) {
     e.noiseT = time;
     for (const o of ents) {
       if (o === e || o.human || !o.alive || o.air !== 'ground' || o.target) continue;
@@ -1593,7 +1622,7 @@ function kill(e, src, weapon) {
   if (src && src !== e) src.kills++;
   const text = e.disc ? `${e.name} se desconectó`
     : src === e ? (e === player && net.role === 'solo' ? 'Te alcanzó tu propia granada' : `${e.name} cayó en su propia granada`)
-    : src ? `${src.name} eliminó a ${e.name}${weapon ? ' · ' + weapon : ''}` : `${e.name} murió en la zona`;
+    : src ? `${src.name} eliminó a ${e.name}${weapon ? ' · ' + weapon : ''}` : weapon === 'Lava' ? `${e.name} cayó en la lava` : `${e.name} murió en la zona`;
   pushFeed(text, 6, e === player || src === player);
   bcast({ k: 'fd', text, ids: [e.id, src ? src.id : -1] });
   bcast({ k: 'k', id: e.id });
@@ -1895,7 +1924,7 @@ function pickWaypoint(e) {
 function chooseSlot(e, d) {
   const a = e.guns[0], b = e.guns[1];
   if (!a || !b) return;
-  const score = g => Math.abs(WEAPONS[g.type].pref - d) - gunValue(g) * 60 + (g.mag === 0 ? 400 : 0);
+  const score = g => Math.abs(WEAPONS[g.type].pref - d) - gunValue(g) * 60 + (g.mag === 0 ? 400 : 0) + (WEAPONS[g.type].rocket && d < 220 ? 900 : 0);
   const s = score(a) <= score(b) ? 0 : 1;
   if (s !== e.slot) { e.slot = s; e.reloadT = 0; e.cd = Math.max(e.cd, 0.35); }
 }
@@ -2008,6 +2037,10 @@ function updateBot(e, dt) {
     }
     if (outside) sp *= 1.25;
   }
+  if (TH.lava) for (const p of ponds) { // esquivar la lava
+    const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy);
+    if (d < p.r + 30 && d > 0.1) { mx += dx / d * 3; my += dy / d * 3; }
+  }
   for (const n of nades) { // huir de granadas cercanas
     const dx = e.x - n.x, dy = e.y - n.y, d = Math.hypot(dx, dy);
     if (d < NADE_R + 20 && d > 0.1) { mx += dx / d * 2.5; my += dy / d * 2.5; }
@@ -2042,6 +2075,11 @@ function commonUpdate(e, dt) {
     }
     if (!e.human) { const b = nearestBox(e, 34); if (b) botLootBox(e, b); }
   }
+  if (TH.lava && e.wet && !e.veh && e.air === 'ground') {
+    e.hp -= 9 * dt;
+    if (e === player) hurtFlash = Math.max(hurtFlash, 0.2);
+    if (e.hp <= 0) { kill(e, null, 'Lava'); return; }
+  }
   if (dist(e.x, e.y, zone.x, zone.y) > zone.r) {
     e.hp -= zone.dps * dt;
     if (e === player) hurtFlash = Math.max(hurtFlash, 0.15);
@@ -2073,7 +2111,11 @@ function updateBullets(dt) {
       }
     }
     b.life -= dt;
-    if (remove || b.life <= 0 || b.x < 0 || b.y < 0 || b.x > WORLD || b.y > WORLD) bullets.splice(i, 1);
+    if (b.rk && Math.random() < dt * 40) particles.push({ x: b.x, y: b.y, vx: rand(-20, 20), vy: rand(-20, 20), life: 0.5, max: 0.5, color: 'rgba(200,200,200,.6)', size: 5 });
+    if (remove || b.life <= 0 || b.x < 0 || b.y < 0 || b.x > WORLD || b.y > WORLD) {
+      bullets.splice(i, 1);
+      if (b.rk) explode({ x: b.x - b.vx * 0.01, y: b.y - b.vy * 0.01, owner: b.owner }, 'Lanzacohetes');
+    }
   }
 }
 function update(dt) {
@@ -2149,7 +2191,7 @@ function updateCamera(dt) {
     cam.x = f.x; cam.y = f.y;
     if (f.air === 'glide') zt *= lerp(1, 0.55, f.glideT / GLIDE);
     else if (f.veh) zt *= 0.78; // conduciendo se ve más lejos
-    else { const g = f.guns[f.slot]; if (g && g.type === 'francotirador') zt *= 0.72; }
+    else { const g = f.guns[f.slot]; if (g && g.type === 'francotirador') zt *= 0.72; else if (g && g.type === 'tirador') zt *= 0.84; }
   } else if (f) { const k = Math.min(1, dt * 4); cam.x = lerp(cam.x, f.x, k); cam.y = lerp(cam.y, f.y, k); }
   cam.z = lerp(cam.z, zt, Math.min(1, dt * 3));
 }
@@ -2220,6 +2262,12 @@ function drawPerson(c, sk, x, y, ang, o = {}) {
     c.strokeStyle = 'rgba(0,0,0,.4)'; c.lineWidth = 1.4; c.stroke();
   }
   if (S.pack) { c.fillStyle = S.pack; c.beginPath(); c.ellipse(-10, 0, 5, 9, 0, 0, Math.PI * 2); c.fill(); c.strokeStyle = dark; c.lineWidth = 1.5; c.stroke(); }
+  // pies: se mueven al caminar (o.step = fase del paso, o.walk = 0..1)
+  if (!o.pose) {
+    const sw = Math.sin(o.step || 0) * 10 * (o.walk || 0);
+    c.fillStyle = S.shoe || '#22252b';
+    for (const [fx, fy] of [[sw, 6.5], [-sw, -6.5]]) { c.beginPath(); c.ellipse(fx, fy, 5, 3.4, 0, 0, Math.PI * 2); c.fill(); }
+  }
   // brillo neón
   if (S.glow && !o.hit) { c.shadowColor = S.glow; c.shadowBlur = 12; }
   // torso (hombros)
@@ -2498,7 +2546,13 @@ function drawEnt(e) {
   if (e.down) { drawDowned(e); return; }
   const g = e.guns[e.slot], W = g ? WEAPONS[g.type] : null;
   ctx.beginPath(); ctx.arc(e.x + 3, e.y + 5, e.r, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fill();
+  // fase del paso según lo que se ha movido (funciona igual en el anfitrión y en los invitados)
+  const md = e.lx == null ? 0 : Math.hypot(e.x - e.lx, e.y - e.ly);
+  e.lx = e.x; e.ly = e.y;
+  if (md < 40) e.stepP = (e.stepP || 0) + md * 0.16;
+  e.walkA = lerp(e.walkA || 0, md > 0.4 ? 1 : 0, 0.25);
   drawPerson(ctx, e.sk, e.x, e.y, e.ang, {
+    step: e.stepP, walk: e.walkA,
     W, tier: g ? g.tier : 0, rc: Math.max(0, 0.08 - (time - e.lastShot)) * 45, flash: time - e.lastShot < 0.05,
     hit: e.hitT > 0, av: e.av, ring: ringOf(e),
   });
@@ -2543,6 +2597,21 @@ function drawGlider(e) {
   else if (e.human) txt(e.name, e.x, e.y - h - 80 * s, 13, e.color, 'center', 800);
 }
 // Cactus (mapa desierto): vista desde arriba, con costillas, espinas y brazos
+// Palmera (mapa playa): hojas largas en estrella y cocos
+function drawPalm(c) {
+  const r = c.r * 2.1;
+  ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.beginPath(); ctx.arc(c.x + 10, c.y + 12, r * 0.7, 0, Math.PI * 2); ctx.fill();
+  const seed = c.x * 0.37 + c.y * 0.11;
+  for (let k = 0; k < 7; k++) {
+    const a = seed + k / 7 * Math.PI * 2;
+    ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(a);
+    ctx.beginPath(); ctx.ellipse(r * 0.5, 0, r * 0.52, r * 0.16, 0, 0, Math.PI * 2);
+    ctx.fillStyle = k % 2 ? TH.tree[1] : TH.tree[2]; ctx.fill(); ctx.strokeStyle = TH.tree[0]; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(4, 0); ctx.lineTo(r * 0.95, 0); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.fillStyle = '#6b4423'; for (const [dx, dy] of [[-4, -3], [4, -2], [0, 4]]) { ctx.beginPath(); ctx.arc(c.x + dx, c.y + dy, 4.5, 0, Math.PI * 2); ctx.fill(); }
+}
 function drawCactus(c) {
   const r = c.r * 0.8;
   ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.beginPath(); ctx.arc(c.x + 5, c.y + 6, r, 0, Math.PI * 2); ctx.fill();
@@ -2628,11 +2697,19 @@ function render(dt) {
   ctx.globalCompositeOperation = 'lighter';
   ctx.lineCap = 'round';
   ctx.strokeStyle = 'rgba(255,200,90,.25)'; ctx.lineWidth = 6; ctx.beginPath();
-  for (const b of bullets) if (vis(b.x, b.y, 40)) { ctx.moveTo(b.x - b.vx * 0.022, b.y - b.vy * 0.022); ctx.lineTo(b.x, b.y); }
+  for (const b of bullets) if (!b.rk && vis(b.x, b.y, 40)) { ctx.moveTo(b.x - b.vx * 0.022, b.y - b.vy * 0.022); ctx.lineTo(b.x, b.y); }
   ctx.stroke();
   ctx.strokeStyle = 'rgba(255,245,200,.95)'; ctx.lineWidth = 2; ctx.beginPath();
-  for (const b of bullets) if (vis(b.x, b.y, 40)) { ctx.moveTo(b.x - b.vx * 0.018, b.y - b.vy * 0.018); ctx.lineTo(b.x, b.y); }
+  for (const b of bullets) if (!b.rk && vis(b.x, b.y, 40)) { ctx.moveTo(b.x - b.vx * 0.018, b.y - b.vy * 0.018); ctx.lineTo(b.x, b.y); }
   ctx.stroke();
+  for (const b of bullets) { // cohetes: cuerpo con llama
+    if (!b.rk || !vis(b.x, b.y, 40)) continue;
+    const a = Math.atan2(b.vy, b.vx);
+    ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(a);
+    ctx.fillStyle = 'rgba(255,150,40,.8)'; ctx.beginPath(); ctx.moveTo(-8, -4); ctx.lineTo(-20 - Math.random() * 8, 0); ctx.lineTo(-8, 4); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#5a7a3a'; ctx.fillRect(-9, -3.5, 14, 7); ctx.fillStyle = '#e5484d'; ctx.beginPath(); ctx.moveTo(5, -3.5); ctx.lineTo(10, 0); ctx.lineTo(5, 3.5); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
   for (const e of ents) {
     if (!e.seen || e.veh || e.down || time - e.lastShot > 0.06) continue;
     const W = WEAPONS[e.guns[e.slot].type], mx = e.x + Math.cos(e.ang) * (e.r + W.len), my = e.y + Math.sin(e.ang) * (e.r + W.len);
@@ -2688,6 +2765,7 @@ function render(dt) {
     const under = f && dist(f.x, f.y, c.x, c.y) < c.r * 1.8;
     ctx.globalAlpha = under ? 0.42 : 0.97;
     if (TH.cactus) { drawCactus(c); ctx.globalAlpha = 1; continue; }
+    if (TH.palm) { drawPalm(c); ctx.globalAlpha = 1; continue; }
     ctx.fillStyle = TH.tree[0];
     for (const k of c.blobs) { ctx.beginPath(); ctx.arc(c.x + k.dx, c.y + k.dy, k.r + 3, 0, Math.PI * 2); ctx.fill(); }
     ctx.fillStyle = TH.tree[1];
@@ -3029,7 +3107,7 @@ function drawHUD() {
     if (!g) { txt('Vacío', x + sw / 2, sy + 27, 14, '#6b7099', 'center'); continue; }
     const W = WEAPONS[g.type];
     txt(W.name, x + 28, sy + 15, 14, tc, 'left', 700);
-    txt(TIERS[g.tier].name, x + sw - 10, sy + 15, 10, tc, 'right');
+    if (W.name.length <= (touchMode ? 8 : 11)) txt(TIERS[g.tier].name, x + sw - 10, sy + 15, 10, tc, 'right');
     if (sel && p.reloadT > 0) {
       txt('Recargando…', x + 28, sy + 37, 13, '#ffd34d');
       ctx.fillStyle = '#ffd34d'; ctx.fillRect(x + 8, sy + 48, (sw - 16) * (1 - p.reloadT / W.reload), 3);
@@ -3889,7 +3967,7 @@ function handleEvent(ev) {
     case 'f': {
       if (net.role !== 'client') break;
       const o = ents[ev.o], W = WEAPONS[GUNS[ev.w]] || WEAPONS.pistola;
-      for (const b of ev.b) bullets.push({ x: b[0], y: b[1], vx: b[2], vy: b[3], life: b[4], o: ev.o });
+      for (const b of ev.b) bullets.push({ x: b[0], y: b[1], vx: b[2], vy: b[3], life: b[4], o: ev.o, rk: !!W.rocket });
       if (o) {
         o.lastShot = time;
         const [v, pan] = spatial(o.x, o.y, 1300);
@@ -3951,6 +4029,7 @@ function handleEvent(ev) {
 function bulletsVisual(dt) {
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
+    if (b.rk && Math.random() < dt * 40) particles.push({ x: b.x, y: b.y, vx: rand(-20, 20), vy: rand(-20, 20), life: 0.5, max: 0.5, color: 'rgba(200,200,200,.6)', size: 5 });
     const steps = Math.max(1, Math.ceil(Math.hypot(b.vx, b.vy) * dt / 12));
     let remove = false;
     for (let s = 0; s < steps && !remove; s++) {
