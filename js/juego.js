@@ -259,6 +259,17 @@ function explode(n, name = 'Granada') {
   for (const q of rects.slice()) {
     if (q.kind === 'crate' && circleRectHit(n.x, n.y, NADE_R * 0.8, q)) { q.hp -= 60; if (q.hp <= 0) breakCrate(q); }
   }
+  // reacción en cadena: los barriles cercanos estallan un instante después
+  for (const c of circles) if (c.kind === 'barrel' && !c.fuse && dist(n.x, n.y, c.x, c.y) < NADE_R) { c.fuse = 0.18; c.fuseOwner = n.owner; }
+}
+function blowBarrel(c, owner) {
+  if (!circles.includes(c)) return;
+  circles = circles.filter(o => o !== c);
+  bcast({ k: 'bb', id: c.bid });
+  explode({ x: c.x, y: c.y, owner }, 'Barril');
+}
+function updateBarrels(dt) {
+  for (const c of circles.slice()) if (c.kind === 'barrel' && c.fuse) { c.fuse -= dt; if (c.fuse <= 0) blowBarrel(c, c.fuseOwner); }
 }
 function updateNades(dt) {
   for (let i = nades.length - 1; i >= 0; i--) {
@@ -774,6 +785,7 @@ function kill(e, src, weapon) {
     if (m.human && m !== player) toHuman(m, { k: 'pl', place: e.place });
   }
   if (src && src !== e) src.kills++;
+  if (src === player && e !== player) onMyKill(weapon);
   const text = e.disc ? `${e.name} se desconectó`
     : src === e ? (e === player && net.role === 'solo' ? 'Te alcanzó tu propia granada' : `${e.name} cayó en su propia granada`)
     : src ? `${src.name} eliminó a ${e.name}${weapon ? ' · ' + weapon : ''}` : weapon === 'Lava' ? `${e.name} cayó en la lava` : `${e.name} murió en la zona`;
@@ -1288,6 +1300,7 @@ function updateBullets(dt) {
       if (ob) {
         remove = true;
         if (ob.kind === 'crate') { ob.hp -= b.dmg; if (ob.hp <= 0) breakCrate(ob); }
+        if (ob.kind === 'barrel') { ob.hp -= b.dmg; if (ob.hp <= 0) blowBarrel(ob, b.owner); }
         if (ob.kind === 'shield') hitShield(ob.sid, b.dmg);
         for (let k = 0; k < 3; k++) particles.push({ x: b.x, y: b.y, vx: rand(-80, 80), vy: rand(-80, 80), life: 0.25, max: 0.25, color: ob.kind === 'tree' ? '#3c8a37' : ob.kind === 'shield' ? '#9be7ff' : '#d8d2c0', size: 2 });
         break;
@@ -1310,6 +1323,7 @@ function updateBullets(dt) {
 }
 function update(dt) {
   updateMode(dt);
+  updateBarrels(dt);
   time += dt;
   plane.t += dt;
   plane.x = lerp(plane.x0, plane.x1, plane.t / plane.dur); plane.y = lerp(plane.y0, plane.y1, plane.t / plane.dur);

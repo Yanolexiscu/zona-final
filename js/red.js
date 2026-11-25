@@ -106,6 +106,7 @@ function renderLobby() {
 // Ranking de la sala: lo lleva el anfitrión y lo reparte a todos al final de cada partida
 function renderBoard() {
   const rows = net.role === 'solo' ? [] : net.boardRows || [];
+  if (rows.length) weekMerge(rows);
   for (const id of ['board', 'lobbyBoard']) {
     const box = $(id);
     box.classList.toggle('hidden', !rows.length);
@@ -142,7 +143,7 @@ function recordBoard(wt) {
 function leaveRoom() {
   const p = net.peer, wasClient = net.role === 'client';
   net.role = 'solo'; net.peer = null; net.conns = []; net.host = null; net.code = ''; net.lobby = []; net.lobbyAv = []; net.lobbyCh = []; net.bev = []; net.actions = [];
-  net.board = {}; net.boardRows = []; net.lobbyTs = 1; roundDone = true;
+  net.board = {}; net.boardRows = []; net.lobbyTs = 1; roundDone = true; net.prevRows = null;
   if (p) { try { p.destroy(); } catch (e) {} }
   $('lobby').classList.add('hidden');
   // la copia del invitado no puede seguir la partida sola: vuelve al menú
@@ -259,7 +260,8 @@ function hostLobbyUpdate() {
 function packMap() {
   return {
     t: mapKey,
-    c: circles.filter(c => c.kind === 'rock' || c.kind === 'tree').map(c => [r1(c.x), r1(c.y), r1(c.r), c.kind === 'rock' ? 0 : 1, c.kind === 'rock' ? c.pts.map(r1) : c.blobs.map(b => [r1(b.dx), r1(b.dy), r1(b.r)])]),
+    c: circles.filter(c => c.kind === 'rock' || c.kind === 'tree' || c.kind === 'barrel').map(c => [r1(c.x), r1(c.y), r1(c.r), c.kind === 'rock' ? 0 : c.kind === 'tree' ? 1 : 2,
+      c.kind === 'rock' ? c.pts.map(r1) : c.kind === 'tree' ? c.blobs.map(b => [r1(b.dx), r1(b.dy), r1(b.r)]) : c.bid]),
     r: rects.map(q => [r1(q.x), r1(q.y), r1(q.w), r1(q.h), q.kind === 'wall' ? 0 : 1, q.id]),
     b: buildings.map(b => [b.x, b.y, b.w, b.h, b.roof, b.doors.map(d => [r1(d.x), r1(d.y), d.nx, d.ny])]),
     u: bushes.map(b => [r1(b.x), r1(b.y), r1(b.r), b.blobs.map(k => [r1(k.dx), r1(k.dy), r1(k.r)])]),
@@ -269,8 +271,8 @@ function packMap() {
 }
 function unpackMap(m) {
   mapKey = MAPS[m.t] ? m.t : 'bosque'; TH = MAPS[mapKey];
-  circles = m.c.map(a => a[3] === 0
-    ? { x: a[0], y: a[1], r: a[2], kind: 'rock', pts: a[4] }
+  circles = m.c.map(a => a[3] === 0 ? { x: a[0], y: a[1], r: a[2], kind: 'rock', pts: a[4] }
+    : a[3] === 2 ? { x: a[0], y: a[1], r: a[2], kind: 'barrel', hp: 35, bid: a[4] }
     : { x: a[0], y: a[1], r: a[2], kind: 'tree', blobs: a[4].map(k => ({ dx: k[0], dy: k[1], r: k[2] })) });
   rects = m.r.map(a => ({ x: a[0], y: a[1], w: a[2], h: a[3], kind: a[4] === 0 ? 'wall' : 'crate', id: a[5], hp: CRATE_HP }));
   buildings = m.b.map(a => ({ x: a[0], y: a[1], w: a[2], h: a[3], roof: a[4], roofA: 1, doors: a[5].map(d => ({ x: d[0], y: d[1], nx: d[2], ny: d[3] })) }));
@@ -577,6 +579,7 @@ function handleEvent(ev) {
     case 'c': { const q = rects.find(r => r.id === ev.id); if (q) breakCrateFx(q); break; }
     case 'fd':
       pushFeed(ev.text, ev.all ? 7 : 6, !!ev.all || (ev.ids || []).includes(net.myId));
+      if (net.role === 'client' && Array.isArray(ev.ids) && ev.ids[1] === net.myId && ev.ids[0] !== net.myId) onMyKill(String(ev.text).split(' · ')[1] || '');
       if (ev.s && sfx[ev.s]) sfx[ev.s]();
       break;
     case 'a': showAnnounce(ev.text, ev.c); if (ev.s && sfx[ev.s]) sfx[ev.s](); break;
@@ -616,6 +619,7 @@ function handleEvent(ev) {
     case 'vx': if (net.role === 'client') { explodeFx(ev.x, ev.y); vehicles = vehicles.filter(v => v.id !== ev.id); if (player.veh && player.veh.id === ev.id) player.veh = null; } break;
     case 'pl': if (ev.place > 0) player.place = ev.place; break;
     case 'wv': zWave = ev.n | 0; break;
+    case 'bb': if (net.role === 'client') circles = circles.filter(c => c.bid !== ev.id || c.kind !== 'barrel'); break;
     case 'rd': duelRound = ev.n | 0; if (Array.isArray(ev.sc)) duelScore = ev.sc; break;
     case 'qc': {
       const o = ents[ev.id];

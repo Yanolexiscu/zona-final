@@ -154,14 +154,20 @@ const SKINS = [
   { name: 'Zorro Ninja', shirt: '#24232b', skin: '#f08c3a', hat: 'fox', hatC: '#f08c3a', band: '#24232b', pat: 'belt', patC: '#f08c3a', price: 950 },
   { name: 'Hamburguesa', shirt: '#d8402f', skin: '#f1c27d', hat: 'burger', hatC: '#d8402f', pat: 'apron', patC: '#ffd34d', price: 600 },
   { name: 'Yeti',        shirt: '#eef3f8', skin: '#9fd6ff', hat: 'yeti', hatC: '#eef3f8', pat: 'fur2', glove: '#eef3f8', price: 1200 },
+  // exclusivas: por nivel o por el pase de temporada (no se compran)
+  { name: 'Comandante', shirt: '#2f3d2a', skin: '#c68e5a', hat: 'helmet', hatC: '#3d4a2a', pat: 'camo', pack: '#2a2a1a', excl: '⭐ Nivel 5', need: { k: 'level', n: 5 } },
+  { name: 'Leyenda', shirt: '#1a1a1a', skin: '#e0ac69', hair: '#111', hat: 'crown', hatC: '#ffd700', pat: 'royal', patC: '#ffd700', glow: '#ffd700', excl: '⭐ Nivel 10', need: { k: 'level', n: 10 } },
+  { name: 'Cometa', shirt: '#0b1f4a', skin: '#ffe3cf', hair: '#7fd3ff', hat: 'mohawk', glow: '#7fd3ff', pat: 'stars', patC: '#7fd3ff', excl: '🎟️ Pase nivel 10' },
+  { name: 'Dragón Rojo', shirt: '#8e1b1b', skin: '#ffe0c0', hat: 'spikes', hatC: '#c62828', spikeC: '#ffb020', pat: 'plates', patC: '#5a1010', excl: '🎟️ Pase nivel 20' },
+  { name: 'Aurora', shirt: '#2b1645', skin: '#f1c27d', hair: '#5ee7ff', hat: 'hood', hatC: '#3a2a7a', glow: '#5ee7ff', pat: 'gem', excl: '🎟️ Pase nivel 30' },
 ];
-const NEED_TXT = { games: 'partidas', wins: 'victorias', kills: 'bajas' };
+const NEED_TXT = { games: 'partidas', wins: 'victorias', kills: 'bajas', level: 'de nivel' };
 // Monedas 🪙: se ganan jugando y se gastan en la tienda de skins (todo se guarda en el teléfono)
 let coins = 0, owned = [];
 try { coins = Math.max(0, Math.floor(+localStorage.getItem('zf-coins') || 0)); const o = JSON.parse(localStorage.getItem('zf-owned')); if (Array.isArray(o)) owned = o.filter(Number.isInteger); } catch (e) {}
 function saveWallet() { try { localStorage.setItem('zf-coins', String(coins)); localStorage.setItem('zf-owned', JSON.stringify(owned)); } catch (e) {} }
 const needMet = (i, s) => { const n = SKINS[i].need; return !!n && ((s || loadStats())[n.k] || 0) >= n.n; };
-const skinOpen = (i, s) => !!SKINS[i] && (!SKINS[i].price || owned.includes(i) || needMet(i, s));
+const skinOpen = (i, s) => !!SKINS[i] && ((!SKINS[i].price && !SKINS[i].excl) || owned.includes(i) || needMet(i, s));
 
 let mySk = 0, newSkins = [], roundCoins = 0;
 try { const k = +localStorage.getItem('zf-skin'); if (k >= 0 && k < SKINS.length) mySk = k | 0; } catch (e) {}
@@ -235,7 +241,7 @@ const teamsOn = () => teamSize > 1;
 const EMOS = ['👋', '😂', '🔥', '🆘'];
 // Chat rápido: frases cortas que ven tus compañeros (o todos, en individual)
 const QC = ['¡Vamos!', 'Necesito botiquín', '¡Enemigo aquí!', 'Cúbreme', '¡Buen tiro!', 'Sígueme', 'Espera', '¡Gracias!'];
-const GAME_VER = 'zf-v22';
+const GAME_VER = 'zf-v23';
 // Ajustes de accesibilidad y diagnóstico (se guardan en el teléfono)
 let cbMode = false, bigTxt = false, showFps = false, musVol = 0.45;
 try {
@@ -523,6 +529,8 @@ function genMap(key) {
   });
   place(TH.trees, 20, 28, (x, y, r) => circles.push({ x, y, r, kind: 'tree', blobs: blobs(5, r * 1.15, r * 0.55) }));
   place(TH.crates, 32, 32, (x, y) => rects.push({ x: x - 22, y: y - 22, w: 44, h: 44, kind: 'crate', hp: CRATE_HP }));
+  let nb = 0; // barriles explosivos: un disparo fuerte o una explosión los hace estallar
+  place(TH.city ? 18 : 12, 17, 17, (x, y) => circles.push({ x, y, r: 17, kind: 'barrel', hp: 35, bid: ++nb }));
   for (let i = 0, c = 0; i < 800 && c < TH.bushes; i++) {
     const r = rand(34, 52), x = rand(r, WORLD - r), y = rand(r, WORLD - r);
     if (insideBuilding(x, y, r + 10) || pondNear(x, y, r * 0.3)) continue;

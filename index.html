@@ -41,6 +41,21 @@
   .prof b { display: block; font-size: 1.25rem; color: var(--text); }
   .prof span { font-size: .75rem; color: var(--muted); }
   body.bigtxt { font-size: 112%; }
+  .pbar { height: 10px; border-radius: 5px; background: #262b52; overflow: hidden; margin: 4px 0 10px; }
+  .pbar i { display: block; height: 100%; background: linear-gradient(90deg, #ffd34d, #ff9f43); }
+  .ptiers { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; }
+  .ptiers div { background: #1b1f3b; border: 1px solid var(--line); border-radius: 10px; padding: 6px 4px; font-size: .75rem; color: var(--muted); }
+  .ptiers div b { display: block; color: var(--text); font-size: .85rem; }
+  .ptiers div.got { border-color: #5dffb1; background: #173a2e; }
+  .ptiers div.big { border-color: var(--accent); }
+  .lvl { margin: 6px 0 4px; font-weight: 800; color: var(--accent); }
+  .lvl .pbar { margin: 6px 0 0; }
+  .achs { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; margin-top: 6px; }
+  .achs div { background: #1b1f3b; border: 1px solid var(--line); border-radius: 10px; padding: 7px 6px; font-size: .72rem; color: var(--muted); text-align: left; }
+  .achs div b { display: block; color: var(--text); font-size: .82rem; }
+  .achs div.no { opacity: .45; filter: grayscale(1); }
+  .achs div.ok { border-color: #ffd34d; }
+  #weekBoard .brow { display: flex; gap: 8px; justify-content: space-between; padding: 6px 4px; border-bottom: 1px solid var(--line); font-size: .85rem; }
   body.bigtxt .srow, body.bigtxt p, body.bigtxt button { font-size: 1.08em; }
   .menu-btns { display: flex; gap: 8px; justify-content: center; margin: -4px 0 14px; flex-wrap: wrap; }
   .menu-btns button { padding: 8px 12px; font-size: .9rem; }
@@ -257,6 +272,7 @@
       <button class="sec" id="setBtn" type="button">⚙️ Ajustes</button>
       <button class="sec" id="misBtn" type="button">📋 Misiones</button>
       <button class="sec" id="profBtn" type="button">📊 Perfil</button>
+      <button class="sec" id="passBtn" type="button">🎟️ Pase</button>
     </div>
     <button id="play">Jugar solo</button>
     <div class="mp">
@@ -366,8 +382,23 @@
   <div class="card set-card">
     <div class="big">📊 Tu perfil</div>
     <p style="margin:0 0 6px" id="profName"></p>
+    <div class="lvl" id="profLvl"></div>
     <div class="prof" id="profGrid"></div>
+    <div class="bt" style="margin-top:14px">🏅 Logros <span id="achCount"></span></div>
+    <div class="achs" id="achGrid"></div>
+    <div class="bt" style="margin-top:14px">👥 Ranking de amigos de esta semana</div>
+    <div id="weekBoard"></div>
     <button id="profOk" type="button">Listo</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="pass">
+  <div class="card set-card" style="max-width:560px">
+    <div class="big">🎟️ <span id="passTitle">Pase de temporada</span></div>
+    <p style="margin:0 0 6px" id="passInfo"></p>
+    <div class="bar pbar"><i id="passFill"></i></div>
+    <div class="ptiers" id="passGrid"></div>
+    <button id="passOk" type="button">Listo</button>
   </div>
 </div>
 
@@ -389,6 +420,7 @@
     <button class="sec" id="repBtn" type="button">🐞 Reportar problema (copiar informe)</button>
     <p class="stats" id="repMsg" style="margin:6px 0 0"></p>
     <textarea id="repTxt" hidden readonly style="width:100%;height:110px;font-size:.7rem;background:#1b1f3b;color:var(--text);border:1px solid var(--line);border-radius:8px"></textarea>
+    <button class="sec touch-only" id="btnEditB" type="button" style="display:block">🕹️ Colocar los botones táctiles</button>
     <button class="sec" id="tutAgain" type="button">🎓 Ver el tutorial otra vez</button>
     <button id="setOk" type="button">Listo</button>
   </div>

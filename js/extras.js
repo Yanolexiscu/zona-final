@@ -77,7 +77,127 @@ function openProfile() {
   const grid = $('profGrid'); grid.textContent = '';
   for (const [k, v] of tiles) { const d = document.createElement('div'), b = document.createElement('b'), sp = document.createElement('span'); b.textContent = v; sp.textContent = k; d.append(b, sp); grid.appendChild(d); }
   $('profName').textContent = `${getName()} · ${CHARS[myCh] ? CHARS[myCh].icon + ' ' + CHARS[myCh].name : ''} · ${SKINS[mySk].name}`;
+  const L = s.level || 1, X = s.xp || 0;
+  $('profLvl').innerHTML = '';
+  $('profLvl').append(document.createTextNode(`⭐ Nivel ${L} · ${X} / ${xpNeed(L)} XP`));
+  { const b = document.createElement('div'), i = document.createElement('i'); b.className = 'pbar'; i.style.width = `${Math.round(X / xpNeed(L) * 100)}%`; b.appendChild(i); $('profLvl').appendChild(b); }
+  const got = s.ach || [], ag = $('achGrid'); ag.textContent = '';
+  $('achCount').textContent = `(${got.length} / ${ACH.length})`;
+  for (const a of ACH) {
+    const d = document.createElement('div'), b = document.createElement('b');
+    d.className = got.includes(a.id) ? 'ok' : 'no'; b.textContent = `${a.icon} ${a.name}`;
+    d.append(b, document.createTextNode(a.desc)); ag.appendChild(d);
+  }
+  const W = weekLoad(), wb = $('weekBoard'); wb.textContent = '';
+  const rows = Object.entries(W.rows).sort((a, b) => b[1].w - a[1].w || b[1].k - a[1].k);
+  if (!rows.length) { const p = document.createElement('p'); p.className = 'stats'; p.textContent = 'Juega en una sala con amigos y aquí verás quién gana más esta semana.'; wb.appendChild(p); }
+  rows.slice(0, 10).forEach(([n, r], i) => {
+    const row = document.createElement('div'); row.className = 'brow';
+    const a = document.createElement('b'); a.textContent = `${i === 0 ? '👑' : i + 1 + '.'} ${n}`;
+    const b = document.createElement('span'); b.textContent = `🏆 ${r.w} · 🎯 ${r.k} · 🎮 ${r.g}`;
+    row.append(a, b); wb.appendChild(row);
+  });
   $('profile').classList.remove('hidden');
+}
+
+/* ---------- Niveles, logros y pase de temporada ---------- */
+let roundFlags = { healed: false, racha: false, nadeK: 0 };
+const myKillTimes = [];
+function onMyKill(weapon) {
+  myKillTimes.push(time);
+  while (myKillTimes.length && time - myKillTimes[0] > 10) myKillTimes.shift();
+  if (myKillTimes.length >= 3) roundFlags.racha = true;
+  if (/Granada|Barril/.test(weapon || '')) roundFlags.nadeK++;
+}
+const xpNeed = L => 200 + L * 100;
+function addXP(s, xp) {
+  s.level = s.level || 1; s.xp = (s.xp || 0) + xp;
+  while (s.xp >= xpNeed(s.level)) {
+    s.xp -= xpNeed(s.level); s.level++;
+    const c = 40 + s.level * 10; coins += c; roundCoins += c; saveWallet();
+    pushFeed(`⭐ ¡Subiste al nivel ${s.level}! +🪙${c}`, 8, true);
+    try { sfx.kill(); } catch (e) {}
+  }
+}
+const ACH = [
+  { id: 'sangre', icon: '🩸', name: 'Primera sangre', desc: 'Consigue tu primera baja', ok: s => s.kills >= 1 },
+  { id: 'cazador', icon: '🎯', name: 'Cazador', desc: '100 bajas en total', ok: s => s.kills >= 100 },
+  { id: 'top5', icon: '🛡️', name: 'Superviviente', desc: 'Queda 10 veces en el top 5', ok: s => (s.top5 || 0) >= 10 },
+  { id: 'gana1', icon: '🏆', name: 'Primera victoria', desc: 'Gana una partida', ok: s => s.wins >= 1 },
+  { id: 'gana10', icon: '👑', name: 'Campeón', desc: 'Gana 10 partidas', ok: s => s.wins >= 10 },
+  { id: 'racha', icon: '🔥', name: 'Imparable', desc: '3 bajas en 10 segundos', ok: s => !!s.ach_racha },
+  { id: 'granada', icon: '💣', name: 'Dinamitero', desc: '5 bajas con granadas o barriles', ok: s => (s.nadeK || 0) >= 5 },
+  { id: 'sincura', icon: '💪', name: 'Duro de pelar', desc: 'Gana sin usar botiquines', ok: s => !!s.ach_sincura },
+  { id: 'zombi', icon: '🧟', name: 'Cazazombis', desc: 'Supera las 5 oleadas de zombis', ok: s => !!s.ach_zombi },
+  { id: 'duelo', icon: '⚔️', name: 'Duelista', desc: 'Gana un duelo', ok: s => !!s.ach_duelo },
+  { id: 'noche', icon: '🌙', name: 'Noctámbulo', desc: 'Gana en el mapa de Noche', ok: s => !!s.ach_noche },
+  { id: 'skins', icon: '👕', name: 'Coleccionista', desc: 'Consigue 10 skins', ok: s => SKINS.filter((_, i) => skinOpen(i, s)).length >= 10 },
+  { id: 'dias', icon: '📅', name: 'Constante', desc: 'Juega 7 días distintos', ok: s => (s.days || []).length >= 7 },
+  { id: 'rico', icon: '💰', name: 'Ahorrador', desc: 'Ten 2000 monedas a la vez', ok: () => coins >= 2000 },
+  { id: 'nivel10', icon: '⭐', name: 'Veterano', desc: 'Llega al nivel 10', ok: s => (s.level || 1) >= 10 },
+];
+function checkAch(s) {
+  s.ach = s.ach || [];
+  for (const a of ACH) {
+    if (s.ach.includes(a.id) || !a.ok(s)) continue;
+    s.ach.push(a.id); coins += 100; roundCoins += 100; saveWallet();
+    pushFeed(`🏅 ¡Logro: ${a.icon} ${a.name}! +🪙100`, 8, true);
+  }
+}
+// Pase de temporada: dura un mes; la XP de cada partida llena sus 30 niveles
+const PASS_TIERS = 30, PASS_STEP = 250, PASS_SKINS = { 10: 'Cometa', 20: 'Dragón Rojo', 30: 'Aurora' };
+const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+function passState() {
+  const d = new Date(), season = `${d.getFullYear()}-${d.getMonth() + 1}`;
+  let P = null;
+  try { P = JSON.parse(localStorage.getItem('zf-pass')); } catch (e) {}
+  if (!P || P.season !== season) P = { season, xp: 0, tier: 0 };
+  return P;
+}
+const passReward = t => PASS_SKINS[t] ? { skin: PASS_SKINS[t] } : { coins: 30 + t * 5 };
+function passAdd(xp) {
+  const P = passState();
+  P.xp += xp;
+  while (P.tier < PASS_TIERS && P.xp >= (P.tier + 1) * PASS_STEP) {
+    P.tier++;
+    const r = passReward(P.tier);
+    if (r.skin) { const i = SKINS.findIndex(k => k.name === r.skin); if (i >= 0 && !owned.includes(i)) owned.push(i); saveWallet(); pushFeed(`🎟️ Pase nivel ${P.tier}: ¡skin ${r.skin}!`, 8, true); newSkins.push(r.skin); }
+    else { coins += r.coins; roundCoins += r.coins; saveWallet(); pushFeed(`🎟️ Pase nivel ${P.tier}: +🪙${r.coins}`, 7, true); }
+  }
+  try { localStorage.setItem('zf-pass', JSON.stringify(P)); } catch (e) {}
+}
+function openPass() {
+  const P = passState(), d = new Date(), end = new Date(d.getFullYear(), d.getMonth() + 1, 1), days = Math.ceil((end - d) / 86400000);
+  $('passTitle').textContent = `Temporada de ${MONTHS[d.getMonth()]}`;
+  const next = Math.min(PASS_TIERS, P.tier + 1), into = P.xp - P.tier * PASS_STEP;
+  $('passInfo').textContent = P.tier >= PASS_TIERS ? '¡Completaste el pase! 🎉' : `Nivel ${P.tier} de ${PASS_TIERS} · ${into} / ${PASS_STEP} XP para el ${next} · termina en ${days} días`;
+  $('passFill').style.width = `${P.tier >= PASS_TIERS ? 100 : Math.round(into / PASS_STEP * 100)}%`;
+  const grid = $('passGrid'); grid.textContent = '';
+  for (let t = 1; t <= PASS_TIERS; t++) {
+    const r = passReward(t), el = document.createElement('div'), b = document.createElement('b');
+    el.className = (t <= P.tier ? 'got' : '') + (r.skin ? ' big' : '');
+    b.textContent = (t <= P.tier ? '✅ ' : '') + t;
+    el.append(b, document.createTextNode(r.skin ? '👕 ' + r.skin : '🪙 ' + r.coins));
+    grid.appendChild(el);
+  }
+  $('pass').classList.remove('hidden');
+}
+// Ranking de amigos de la semana (se suma lo que pasa en las salas)
+const weekNo = () => { const d = new Date(); return Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000 + 3) / 7); };
+function weekLoad() {
+  let W = null;
+  try { W = JSON.parse(localStorage.getItem('zf-week')); } catch (e) {}
+  if (!W || W.wk !== weekNo()) W = { wk: weekNo(), rows: {} };
+  return W;
+}
+function weekMerge(rows) {
+  const W = weekLoad(), prev = net.prevRows || {};
+  for (const r of rows) {
+    const p = prev[r.n] || { w: 0, k: 0, g: 0 }, q = W.rows[r.n] || (W.rows[r.n] = { w: 0, k: 0, g: 0 });
+    q.w += Math.max(0, r.w - p.w); q.k += Math.max(0, r.k - p.k); q.g += Math.max(0, r.g - p.g);
+  }
+  net.prevRows = Object.fromEntries(rows.map(r => [r.n, { w: r.w, k: r.k, g: r.g }]));
+  try { localStorage.setItem('zf-week', JSON.stringify(W)); } catch (e) {}
 }
 
 /* ---------- Repetición de tu eliminación ---------- */
@@ -198,6 +318,7 @@ const TUT = [
 ];
 function tutStart() { tut = { step: 0, t0: time, x: player.x, y: player.y, walls: player.walls }; }
 function tutTick() {
+  if (player && player.healT > 0 && state === 'play') roundFlags.healed = true;
   if (!tut || state !== 'play' || !player || !player.alive) return;
   const p = player;
   if (!TUT[tut.step].done(p, tut)) return;

@@ -339,7 +339,29 @@ function bigMapPing(x, y) {
   return true;
 }
 const miniSize = () => touchMode ? Math.min(110, VH * 0.3) : Math.min(180, VW * 0.28);
+// Botones táctiles: posición propia guardada (Ajustes → Colocar los botones táctiles)
+let btnEdit = false, btnDrag = null, btnOff = {};
+try { btnOff = JSON.parse(localStorage.getItem('zf-btn')) || {}; } catch (e) {}
+const EDIT_OK = () => ({ x: VW / 2 - 70, y: 40 }), EDIT_RESET = () => ({ x: VW / 2 + 70, y: 40 });
+function btnEditDown(x, y, pid) {
+  if (dist(x, y, EDIT_OK().x, EDIT_OK().y) < 30) { btnEdit = false; btnDrag = null; try { localStorage.setItem('zf-btn', JSON.stringify(btnOff)); } catch (e) {} paused = false; return; }
+  if (dist(x, y, EDIT_RESET().x, EDIT_RESET().y) < 30) { btnOff = {}; return; }
+  let best = null, bd = 44;
+  for (const b of touchButtons()) { const d = dist(x, y, b.x, b.y); if (d < bd) { bd = d; best = b; } }
+  if (best) btnDrag = { id: best.id, pid, sx: x, sy: y, o: (btnOff[best.id] || [0, 0]).slice() };
+}
+function btnEditMove(x, y, pid) {
+  if (!btnDrag || btnDrag.pid !== pid) return;
+  btnOff[btnDrag.id] = [btnDrag.o[0] + x - btnDrag.sx, btnDrag.o[1] + y - btnDrag.sy];
+}
 function touchButtons() {
+  return touchButtonsBase().map(b => {
+    const o = btnOff[b.id];
+    if (o) { b.x = clamp(b.x + o[0], 30, VW - 30); b.y = clamp(b.y + o[1], 30, VH - 30); }
+    return b;
+  });
+}
+function touchButtonsBase() {
   const base = Math.max(VH * 0.5, miniSize() + 130), p = player, busy = p.down || !!p.veh;
   return [
     { id: 'nade', x: VW - 52, y: base - 66, icon: '💣', n: p.nades, hide: busy },
@@ -350,7 +372,7 @@ function touchButtons() {
     { id: 'wall', x: VW - 184, y: base, icon: '🧱', n: p.walls, hide: busy },
     { id: 'veh', x: VW - 250, y: base - 33, icon: p.veh ? '🚪' : '🚗', hide: p.down || (!p.veh && !nearFreeVehicle(p)) },
     { id: 'cam', x: VW - miniSize() - 52, y: 40, icon: '🧭', hide: !on3D() },
-  ].filter(b => !b.hide);
+  ].filter(b => btnEdit || !b.hide);
 }
 // Abanico de reacciones que se abre al tocar 😀
 function emoButtons() {
@@ -383,7 +405,22 @@ function drawChatMenu() {
   }
   if (!touchMode) txt('Pulsa 1-8 para enviar · T para cerrar', VW / 2, chatRects()[7].y + 44, 12, '#c8cde8', 'center', 600);
 }
+function drawBtnEdit() {
+  ctx.fillStyle = 'rgba(5,8,20,.55)'; ctx.fillRect(0, 0, VW, VH);
+  txt('Arrastra los botones a donde quieras', VW / 2, 82, 15, '#ffe9a3', 'center', 800);
+  for (const [b, t, c] of [[EDIT_OK(), '✔', '#5dffb1'], [EDIT_RESET(), '↺', '#ffd34d']]) {
+    ctx.beginPath(); ctx.arc(b.x, b.y, 26, 0, Math.PI * 2); ctx.fillStyle = 'rgba(10,12,28,.9)'; ctx.fill(); ctx.strokeStyle = c; ctx.lineWidth = 3; ctx.stroke();
+    txt(t, b.x, b.y + 1, 22, c, 'center', 800);
+  }
+  txt('Guardar', EDIT_OK().x, EDIT_OK().y + 38, 11, '#c8cde8', 'center'); txt('Restablecer', EDIT_RESET().x, EDIT_RESET().y + 38, 11, '#c8cde8', 'center');
+  for (const b of touchButtons()) {
+    ctx.beginPath(); ctx.arc(b.x, b.y, BTN_R, 0, Math.PI * 2); ctx.fillStyle = 'rgba(10,12,28,.8)'; ctx.fill();
+    ctx.setLineDash([5, 4]); ctx.strokeStyle = btnDrag && btnDrag.id === b.id ? '#ffd34d' : 'rgba(255,255,255,.6)'; ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]);
+    txt(b.icon, b.x, b.y + 1, 22, '#fff', 'center');
+  }
+}
 function drawTouchUI() {
+  if (btnEdit) { drawBtnEdit(); return; }
   if (!touchMode || state !== 'play' || paused || !player.alive) return;
   // pausa
   ctx.beginPath(); ctx.arc(30, 27, 18, 0, Math.PI * 2); ctx.fillStyle = 'rgba(10,12,28,.7)'; ctx.fill();
@@ -432,7 +469,7 @@ function showStats() {
   $('stats').textContent = (s.games
     ? `Partidas: ${s.games} · Victorias: ${s.wins} · Bajas totales: ${s.kills} · Mejor puesto: #${s.best}`
     : 'Todos empiezan con pistola. Salta del avión, busca armas raras en las casas y vigila los suministros aéreos.')
-    + ` · 🪙 ${coins} monedas`;
+    + ` · 🪙 ${coins} monedas · ⭐ Nivel ${s.level || 1}`;
 }
 function resetRound() {
   bullets = []; particles = []; feed = []; nades = []; blasts = []; drops = []; floats = []; indicators = [];
@@ -440,6 +477,7 @@ function resetRound() {
   time = 0; dmgDealt = 0; spectate = null; hitMarker = killMarker = hurtFlash = 0;
   specMode = false; specLabel = ''; resToken++; $('spec').classList.add('hidden');
   roundStats = null; emoOpen = false; roundCoins = 0;
+  roundFlags = { healed: false, racha: false, nadeK: 0 }; myKillTimes.length = 0;
   if (typeof stopReplay === 'function' && replay) stopReplay();
   hist.length = 0; wasAlive = false;
   mouse.down = mouse.pressed = false; showMap = false;
@@ -503,7 +541,22 @@ function saveRoundStats(win, place) {
       if (teamsOn()) misAdd('team', 1);
       if (net.role !== 'solo') misAdd('friends', 1);
     }
-    if (win && !r.win) { s.wins++; earn += 60; misAdd('wins', 1); }
+    if (!r.saved) {
+      s.days = (s.days || []).filter(d => d !== today()).concat(today()).slice(-30);
+      r.xp = 40 + player.kills * 20 + (place > 0 && place <= 10 ? 20 : 0) + (place > 0 && place <= 3 ? 40 : 0);
+    }
+    if (win && !r.win) {
+      s.wins++; earn += 60; misAdd('wins', 1); r.xp = (r.xp || 0) + 120;
+      if (!roundFlags.healed) s.ach_sincura = true;
+      if (TH.night) s.ach_noche = true;
+      if (gmode === 'zombis') s.ach_zombi = true;
+      if (gmode === 'duelo') s.ach_duelo = true;
+    }
+    if (roundFlags.racha) s.ach_racha = true;
+    s.nadeK = (s.nadeK || 0) + roundFlags.nadeK; roundFlags.nadeK = 0;
+    const gain = (r.xp || 0) - (r.xpGiven || 0);
+    if (gain > 0) { addXP(s, gain); passAdd(gain); r.xpGiven = r.xp; }
+    checkAch(s);
     if (earn) { coins += earn; roundCoins += earn; saveWallet(); }
     if (place > 0) s.best = s.best ? Math.min(s.best, place) : place;
     localStorage.setItem('zf-stats', JSON.stringify(s));
@@ -579,7 +632,8 @@ function showResult(win, winner, delay) {
       : (player.killer === player ? 'Tu propia granada acabó contigo.'
         : player.killer ? `Te eliminó ${player.killer.name}.` : 'La zona acabó contigo.')
         + (winner && winner !== player ? (tm ? ` Ganó el equipo de ${winner.name}.` : ` Ganó ${winner.name}.`) : '');
-    $('resCoins').textContent = roundCoins ? `🪙 +${roundCoins} monedas · tienes ${coins}` : `🪙 Tienes ${coins} monedas`;
+    $('resCoins').textContent = (roundCoins ? `🪙 +${roundCoins} monedas · tienes ${coins}` : `🪙 Tienes ${coins} monedas`)
+      + (roundStats && roundStats.xp ? ` · ⭐ +${roundStats.xp} XP (nivel ${loadStats().level || 1})` : '');
     if (newSkins.length) { $('resSub').textContent += ` 🎁 ¡Nueva skin desbloqueada: ${newSkins.join(', ')}! Pruébala en 👕 Skin.`; newSkins = []; showSkinBtns(); }
     $('resPlace').textContent = tm ?`#${place} de ${Math.ceil(totalPlayers / teamSize)} equipos` : `#${place} de ${totalPlayers}`;
     $('resKills').textContent = player.kills;

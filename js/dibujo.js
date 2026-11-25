@@ -550,6 +550,13 @@ function renderNow(dt) {
     for (let i = 0; i < c.pts.length; i += 2) { const px = c.x - c.r * 0.18 + c.pts[i] * 0.55, py = c.y - c.r * 0.22 + c.pts[i + 1] * 0.55; if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); }
     ctx.closePath(); ctx.fillStyle = 'rgba(255,255,255,.13)'; ctx.fill();
   }
+  for (const c of circles) { // barriles explosivos
+    if (c.kind !== 'barrel' || !vis(c.x, c.y, 30)) continue;
+    ctx.beginPath(); ctx.arc(c.x + 4, c.y + 5, c.r, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2); ctx.fillStyle = '#c62828'; ctx.fill(); ctx.strokeStyle = '#5a1010'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.beginPath(); ctx.arc(c.x, c.y, c.r * 0.55, 0, Math.PI * 2); ctx.strokeStyle = '#ffd34d'; ctx.lineWidth = 2; ctx.stroke();
+    txt('⚠', c.x, c.y + 1, 12, '#ffd34d', 'center', 800);
+  }
   for (const q of rects) {
     if (!vis(q.x + q.w / 2, q.y + q.h / 2, Math.max(q.w, q.h))) continue;
     if (q.kind === 'wall') {

@@ -404,6 +404,18 @@ function build3DWorld() {
     g.dispose();
   }
   const rocks = new THREE.Mesh(rb.build(), vmat); rocks.castShadow = rocks.receiveShadow = true; world.add(rocks);
+  // barriles explosivos (cada uno aparte: desaparecen al estallar)
+  r3.barrels = [];
+  for (const c of circles) {
+    if (c.kind !== 'barrel') continue;
+    const b = geoB();
+    b.add(G.cyl, '#c62828', c.x, 22, c.y, 0, 0, 0, c.r, 44, c.r);
+    for (const y of [10, 34]) b.add(G.cyl, '#5a1010', c.x, y, c.y, 0, 0, 0, c.r + 0.8, 3, c.r + 0.8);
+    b.add(G.cyl, '#ffd34d', c.x, 22, c.y, 0, 0, 0, c.r + 0.5, 6, c.r + 0.5);
+    b.add(G.cyl, '#3a3a3a', c.x, 44.5, c.y, 0, 0, 0, c.r * 0.9, 1.5, c.r * 0.9);
+    const m = new THREE.Mesh(b.build(), vmat); m.castShadow = true; world.add(m);
+    r3.barrels.push({ c, m });
+  }
   // árboles (uno por árbol para poder transparentarlo cuando estás debajo)
   r3.treeMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
   r3.treeFade = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, transparent: true, opacity: 0.3, depthWrite: false });
@@ -963,6 +975,7 @@ function render3D(dt) {
     const inside = i === fb;
     if (B.wmat.transparent !== inside) { B.wmat.transparent = inside; B.wmat.opacity = inside ? 0.38 : 1; B.wmat.depthWrite = !inside; B.wmat.needsUpdate = true; }
   }
+  if (r3.barrels) for (const B of r3.barrels) B.m.visible = circles.includes(B.c);
   // árboles y arbustos transparentes si te tapan
   for (const T of r3.trees) {
     const c = T.c, fade = !!f && (dist(f.x, f.y, c.x, c.y) < c.r * 1.8 || dist(f.x, f.y, c.x + ys * 45, c.y - yc * 45) < c.r * 1.7);

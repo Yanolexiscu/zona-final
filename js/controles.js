@@ -65,6 +65,7 @@ function pressButton(id) {
 }
 cv.addEventListener('pointerdown', e => {
   if (replay) { stopReplay(); e.preventDefault(); return; }
+  if (btnEdit) { e.preventDefault(); btnEditDown(e.clientX, e.clientY, e.pointerId); return; }
   if (e.pointerType !== 'touch') return;
   e.preventDefault();
   lastTouchT = performance.now();
@@ -98,6 +99,7 @@ cv.addEventListener('pointerdown', e => {
   else if (player.air === 'ground' && !touch.aim) touch.aim = s;
 }, { passive: false });
 addEventListener('pointermove', e => {
+  if (btnEdit) { btnEditMove(e.clientX, e.clientY, e.pointerId); return; }
   if (e.pointerType !== 'touch') return;
   for (const k of ['move', 'aim']) {
     const s = touch[k];
@@ -112,6 +114,7 @@ addEventListener('pointermove', e => {
   }
 });
 function endTouch(e) {
+  if (btnDrag && btnDrag.pid === e.pointerId) btnDrag = null;
   if (e.pointerType !== 'touch') return;
   if (touch.move && touch.move.id === e.pointerId) touch.move = null;
   if (touch.aim && touch.aim.id === e.pointerId) { touch.aim = null; mouse.down = false; mouse.pressed = false; }
@@ -225,13 +228,15 @@ function openSkins() {
     const nm = document.createElement('span'); nm.textContent = (open ? '' : '🔒 ') + S.name; card.appendChild(nm);
     const sm = document.createElement('small');
     sm.textContent = open ? (i === mySk ? 'En uso' : 'Tuya')
+      : S.excl ? S.excl
       : i === pendingBuy ? '¡Toca para comprar!'
       : `🪙 ${S.price}` + (S.need ? ` · o ${S.need.n} ${NEED_TXT[S.need.k]}` : '');
-    if (!open && coins >= S.price) sm.className = 'afford';
+    if (!open && !S.excl && coins >= S.price) sm.className = 'afford';
     card.appendChild(sm);
     card.onclick = () => {
       const info = $('skinsInfo');
       if (open) { pendingBuy = -1; info.textContent = SHOP_INFO; setSkin(i); openSkins(); return; }
+      if (S.excl) { pendingBuy = -1; info.textContent = `🔒 ${S.name} no se compra: se consigue con ${S.excl.replace(/^\S+ /, '')}.`; openSkins(); return; }
       if (coins < S.price) {
         pendingBuy = -1;
         info.textContent = `🔒 ${S.name} cuesta 🪙 ${S.price}. Te faltan ${S.price - coins} monedas` + (S.need ? ` (o consigue ${S.need.n} ${NEED_TXT[S.need.k]}; llevas ${st[S.need.k] || 0}).` : '.');
@@ -285,6 +290,13 @@ function openSettings() {
   $('settings').classList.remove('hidden');
 }
 $('setBtn').onclick = openSettings;
+$('passBtn').onclick = openPass;
+$('passOk').onclick = () => $('pass').classList.add('hidden');
+$('btnEditB').onclick = () => {
+  if (state !== 'play' || !player.alive) { $('btnEditB').textContent = '🕹️ Ábrelo desde la pausa durante una partida'; return; }
+  $('settings').classList.add('hidden'); $('pause').classList.add('hidden');
+  btnEdit = true; paused = true;
+};
 $('mus').oninput = () => { musVol = +$('mus').value; saveSet('zf-mus', musVol); musicLevel(); };
 $('cbm').onchange = () => { cbMode = $('cbm').checked; saveSet('zf-cb', cbMode ? 1 : 0); };
 $('bigT').onchange = () => { bigTxt = $('bigT').checked; saveSet('zf-big', bigTxt ? 1 : 0); document.body.classList.toggle('bigtxt', bigTxt); };
