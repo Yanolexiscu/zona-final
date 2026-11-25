@@ -127,6 +127,10 @@
   .skin small { color: var(--muted); font-size: .7rem; font-weight: 600; }
   .skin.lock small { color: #ff8fa3; }
   .skins-card { max-width: 640px; }
+  .skin small.afford { color: #ffd34d; }
+  .skin.buy { border-color: #5dffb1; background: rgba(93,255,177,.12); }
+  .coins { font-size: 1.1rem; color: var(--accent); background: rgba(255,211,77,.12); border-radius: 999px; padding: 3px 12px; vertical-align: middle; white-space: nowrap; }
+  .coins-line { color: var(--accent); font-weight: 800; margin: -6px 0 12px; }
   .boxui { position: fixed; top: max(62px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 20;
     background: var(--panel); border: 1px solid #ffd34d; border-radius: 14px; padding: 8px 10px;
     max-width: min(440px, calc(100vw - 260px)); min-width: 220px; box-shadow: 0 10px 30px rgba(0,0,0,.4); text-align: center; }
@@ -142,7 +146,7 @@
 <div class="overlay" id="menu">
   <div class="card">
     <h1>🎯 Zona <span>Final</span></h1>
-    <p>Battle royale offline: tú contra bots. Salta del avión, consigue armas, sobrevive a la zona y sé el último en pie.</p>
+    <p>Battle royale: salta del avión, consigue armas, sobrevive a la zona y sé el último en pie. Gana 🪙 monedas para la tienda de skins.</p>
     <div class="row">
       <button class="av-btn" id="avBtn" type="button" aria-label="Elegir foto de perfil" title="Foto de perfil"><span id="avPh">📷</span><img id="avImg" alt="" hidden></button>
       <input class="txt" id="pname" maxlength="12" placeholder="Tu nombre" autocomplete="off">
@@ -191,6 +195,14 @@
         <option value="2">Dúos</option>
         <option value="4">Escuadras de 4</option>
       </select>
+      <label for="map">Mapa:</label>
+      <select id="map">
+        <option value="azar">🎲 Al azar</option>
+        <option value="bosque">🌲 Bosque</option>
+        <option value="desierto">🏜️ Desierto</option>
+        <option value="nieve">❄️ Nieve</option>
+        <option value="ciudad">🏙️ Ciudad</option>
+      </select>
     </div>
     <div class="row" style="margin-bottom:12px">
       <label for="char">Personaje:</label>
@@ -224,6 +236,7 @@
       <div><b id="resTime"></b><span>Tiempo</span></div>
       <div><b id="resDmg"></b><span>Daño causado</span></div>
     </div>
+    <p class="coins-line" id="resCoins"></p>
     <div class="board hidden" id="board"></div>
     <div class="row" style="margin:0">
       <button id="again">Jugar otra vez</button>
@@ -245,6 +258,14 @@
         <option value="1">Individual</option>
         <option value="2">Dúos</option>
         <option value="4">Escuadras de 4</option>
+      </select>
+      <label for="lobbyMap">Mapa:</label>
+      <select id="lobbyMap">
+        <option value="azar">🎲 Al azar</option>
+        <option value="bosque">🌲 Bosque</option>
+        <option value="desierto">🏜️ Desierto</option>
+        <option value="nieve">❄️ Nieve</option>
+        <option value="ciudad">🏙️ Ciudad</option>
       </select>
       <label for="lobbyChar">Personaje:</label>
       <select id="lobbyChar"></select>
@@ -274,8 +295,8 @@
 
 <div class="overlay hidden" id="skinsBox">
   <div class="card skins-card">
-    <div class="big">👕 Skins</div>
-    <p style="margin:0" id="skinsInfo">Elige cómo se ve tu personaje. Las 🔒 se desbloquean jugando.</p>
+    <div class="big">👕 Tienda de skins <span class="coins" id="skinsCoins">🪙 0</span></div>
+    <p style="margin:0" id="skinsInfo"></p>
     <div class="skins" id="skinsGrid"></div>
     <button id="skinsOk" type="button">Listo</button>
   </div>
@@ -365,6 +386,31 @@ const NAMES = ['Lobo', 'Halcón', 'Zorro', 'Tigre', 'Cobra', 'Puma', 'Águila', 
   'Jaguar', 'Tiburón', 'Coyote', 'Cuervo', 'Pantera', 'Toro', 'Rayo', 'Sombra', 'Trueno', 'Fénix',
   'Mapache', 'Hiena', 'Bisonte', 'Escorpión', 'Dragón', 'Vikingo', 'Ninja', 'Pirata', 'Cometa', 'Tornado'];
 const ROOF_COLORS = ['#8c3b2e', '#3d5a80', '#5c4b8a', '#2f6d5a', '#7a5c2e', '#6b2f4a'];
+// Mapas: cada uno cambia colores, cantidad de casas/árboles/rocas y algunos detalles
+const MAPS = {
+  bosque: { name: '🌲 Bosque', bg: '#132a12', ground: '#4e8a3e', blobs: ['96,156,70', '58,112,46'], road: ['#7d6a48', '#a08a62'],
+    shore: '#c8b98a', water: ['#2f6fa3', '#3b86c4'], grass: ['rgba(25,65,22,.35)', 'rgba(140,200,100,.25)'], grassN: [6000, 3500],
+    dots: ['#ffd34d', '#ff8fa3', '#ffffff', '#b197fc'], floor: '#a3865f', roofs: ['#8c3b2e', '#3d5a80', '#5c4b8a', '#2f6d5a', '#7a5c2e', '#6b2f4a'],
+    tree: ['#1c4a1b', '#2f6e2b', '#3f8f3a'], bush: ['#25602a', '#3d8c3a', '#56a84c'], rock: ['#8f949b', '#5d6268'],
+    lakes: 3, houses: 13, gap: 140, rocks: 55, trees: 75, crates: 30, bushes: 50 },
+  desierto: { name: '🏜️ Desierto', bg: '#5a4528', ground: '#d9b97a', blobs: ['236,210,150', '190,150,95'], road: ['#8a7350', '#b89c6c'],
+    shore: '#e8d4a0', water: ['#2a8f9e', '#45b3c4'], grass: ['rgba(140,110,60,.3)', 'rgba(250,235,200,.35)'], grassN: [1500, 1500],
+    dots: ['#b5865a', '#8a6a4a', '#efe0bb'], floor: '#c9a27a', roofs: ['#b5653a', '#c98b4a', '#9a5a3a', '#d8b48a', '#a8703a'],
+    tree: ['#2f5e2a', '#4f8a3c', '#7cb85a'], bush: ['#8a7a3a', '#a89a4a', '#c8b86a'], rock: ['#c07a48', '#7e4f2e'],
+    lakes: 1, houses: 11, gap: 140, rocks: 85, trees: 45, crates: 30, bushes: 30, cactus: true },
+  nieve: { name: '❄️ Nieve', bg: '#8fa3b8', ground: '#e4ebf2', blobs: ['255,255,255', '196,210,228'], road: ['#93a1b2', '#c1cbd8'],
+    shore: '#d3e3f0', water: ['#8cc0e6', '#b8dcf5'], grass: ['rgba(140,160,185,.3)', 'rgba(255,255,255,.6)'], grassN: [2500, 2500],
+    dots: ['#ffffff', '#c8d6e6', '#a8b8cc'], floor: '#9c7b5a', roofs: ['#7a2f2f', '#3d4f6b', '#5a3a5a', '#2f4f4a', '#6b4a2f'],
+    tree: ['#123222', '#1d4c31', '#2b6745'], bush: ['#6f8f80', '#9cb8aa', '#e8f0f5'], rock: ['#8d9db0', '#5d6c7e'],
+    lakes: 3, houses: 12, gap: 140, rocks: 55, trees: 100, crates: 30, bushes: 40, snow: true },
+  ciudad: { name: '🏙️ Ciudad', bg: '#25282e', ground: '#80858d', blobs: ['104,109,116', '150,155,160'], road: ['#34373c', '#4b4f55'],
+    shore: '#b0b5bb', water: ['#2f6fa3', '#3b86c4'], grass: ['rgba(50,50,50,.3)', 'rgba(210,210,210,.15)'], grassN: [2000, 1000],
+    dots: ['#5a5e64', '#a0a4aa'], floor: '#b9b2a6', roofs: ['#4a4f5a', '#6b5a4a', '#3d5a6b', '#7a4a4a', '#5a6b4a', '#8a8070'],
+    tree: ['#1c4a1b', '#2f6e2b', '#3f8f3a'], bush: ['#2a5a2a', '#3d7a3a', '#56994c'], rock: ['#9a9ea6', '#62666d'],
+    lakes: 1, houses: 26, gap: 85, rocks: 18, trees: 30, crates: 60, bushes: 28, city: true },
+};
+const MAP_KEYS = Object.keys(MAPS);
+let mapKey = 'bosque', TH = MAPS.bosque;
 const HUMAN_COLORS = ['#ffd34d', '#4dd4ff', '#ff6bd6', '#7dff6b', '#ff9f43', '#b28dff', '#ffffff', '#ff5c5c'];
 // Códigos compactos para la red
 // Personajes originales con una habilidad cada uno
@@ -382,18 +428,41 @@ const SKINS = [
   { name: 'Urbano',      shirt: '#5b6270', skin: '#c68e5a', hair: '#1d1d1d', hat: 'hood', hatC: '#454b57', pack: '#2c3038' },
   { name: 'Deportista',  shirt: '#e5484d', skin: '#8d5a3b', hair: '#111', hat: 'cap', hatC: '#ffffff', pat: 'stripe', patC: '#ffffff' },
   { name: 'Camuflaje',   shirt: '#5f6e3c', skin: '#e0ac69', hair: '#3b2a1a', hat: 'helmet', hatC: '#4c5a30', pat: 'camo', pack: '#4a3b26' },
-  { name: 'Pirata',      shirt: '#f2efe6', skin: '#d9a066', hair: '#2a1a0e', hat: 'bandana', hatC: '#c62828', pat: 'stripe', patC: '#c62828', need: { k: 'games', n: 3 } },
-  { name: 'Ninja',       shirt: '#1e1f26', skin: '#f1c27d', hair: '#000', hat: 'hood', hatC: '#15161b', band: '#e5484d', need: { k: 'kills', n: 10 } },
-  { name: 'Zombi',       shirt: '#5a6b4a', skin: '#8fbf6a', hair: '#2d3a22', hat: 'hair', pat: 'torn', need: { k: 'kills', n: 25 } },
-  { name: 'Astronauta',  shirt: '#e9edf2', skin: '#f1c27d', hat: 'helmet', hatC: '#f4f6f8', visor: '#3d8bfd', pack: '#c9d1d9', need: { k: 'wins', n: 1 } },
-  { name: 'Robot',       shirt: '#8a96a8', skin: '#b8c2d0', hat: 'robot', hatC: '#a9b4c4', pat: 'panel', need: { k: 'games', n: 10 } },
-  { name: 'Hielo',       shirt: '#7cc6ff', skin: '#ffe3cf', hair: '#ffffff', hat: 'hair', pat: 'frost', need: { k: 'kills', n: 50 } },
-  { name: 'Neón',        shirt: '#2b1645', skin: '#c68e5a', hair: '#ff3df2', hat: 'mohawk', glow: '#ff3df2', need: { k: 'wins', n: 3 } },
-  { name: 'Rey Dorado',  shirt: '#b8860b', skin: '#e0ac69', hair: '#3b2a1a', hat: 'crown', hatC: '#ffd700', pat: 'royal', patC: '#7a1f1f', need: { k: 'wins', n: 5 } },
+  { name: 'Pirata',      shirt: '#f2efe6', skin: '#d9a066', hair: '#2a1a0e', hat: 'bandana', hatC: '#c62828', pat: 'stripe', patC: '#c62828', need: { k: 'games', n: 3 }, price: 300 },
+  { name: 'Ninja',       shirt: '#1e1f26', skin: '#f1c27d', hair: '#000', hat: 'hood', hatC: '#15161b', band: '#e5484d', need: { k: 'kills', n: 10 }, price: 500 },
+  { name: 'Zombi',       shirt: '#5a6b4a', skin: '#8fbf6a', hair: '#2d3a22', hat: 'hair', pat: 'torn', need: { k: 'kills', n: 25 }, price: 600 },
+  { name: 'Astronauta',  shirt: '#e9edf2', skin: '#f1c27d', hat: 'helmet', hatC: '#f4f6f8', visor: '#3d8bfd', pack: '#c9d1d9', need: { k: 'wins', n: 1 }, price: 800 },
+  { name: 'Robot',       shirt: '#8a96a8', skin: '#b8c2d0', hat: 'robot', hatC: '#a9b4c4', pat: 'panel', need: { k: 'games', n: 10 }, price: 700 },
+  { name: 'Hielo',       shirt: '#7cc6ff', skin: '#ffe3cf', hair: '#ffffff', hat: 'hair', pat: 'frost', need: { k: 'kills', n: 50 }, price: 900 },
+  { name: 'Neón',        shirt: '#2b1645', skin: '#c68e5a', hair: '#ff3df2', hat: 'mohawk', glow: '#ff3df2', need: { k: 'wins', n: 3 }, price: 1000 },
+  { name: 'Rey Dorado',  shirt: '#b8860b', skin: '#e0ac69', hair: '#3b2a1a', hat: 'crown', hatC: '#ffd700', pat: 'royal', patC: '#7a1f1f', need: { k: 'wins', n: 5 }, price: 1500 },
+  { name: 'Vaquero',     shirt: '#8b5a2b', skin: '#e0ac69', hair: '#5a3a1a', hat: 'cowboy', hatC: '#6b4423', pat: 'vest', patC: '#3e2a16', price: 250 },
+  { name: 'Bombero',     shirt: '#c62828', skin: '#f1c27d', hat: 'helmet', hatC: '#f5c518', pat: 'reflect', patC: '#f5f56a', pack: '#9e9e9e', price: 300 },
+  { name: 'Médico',      shirt: '#e8f4f8', skin: '#c68e5a', hair: '#1d1d1d', hat: 'cap', hatC: '#e8f4f8', pat: 'cross', patC: '#e5484d', price: 300 },
+  { name: 'Explorador',  shirt: '#c2a878', skin: '#f1c27d', hair: '#6b4423', hat: 'safari', hatC: '#d8c08c', pack: '#6b5a3a', price: 350 },
+  { name: 'Chef',        shirt: '#f7f7f7', skin: '#e0ac69', hair: '#222', hat: 'chef', hatC: '#ffffff', pat: 'buttons', patC: '#333', price: 350 },
+  { name: 'Buzo',        shirt: '#1f3b57', skin: '#f1c27d', hat: 'helmet', hatC: '#ffb020', visor: '#7fd3ff', pack: '#ffb020', price: 450 },
+  { name: 'Caballero',   shirt: '#9aa3ad', skin: '#f1c27d', hat: 'knight', hatC: '#c0c8d2', pat: 'royal', patC: '#2a4d9b', price: 650 },
+  { name: 'Vikingo',     shirt: '#7a5230', skin: '#f1c27d', hair: '#e0a040', hat: 'horns', hatC: '#8d969f', pat: 'fur', price: 650 },
+  { name: 'Mago',        shirt: '#3a2a7a', skin: '#f1c27d', hat: 'wizard', hatC: '#3a2a7a', pat: 'stars', patC: '#ffd34d', price: 750 },
+  { name: 'Gato',        shirt: '#f08c3a', skin: '#ffe0c0', hat: 'ears', hatC: '#f08c3a', pat: 'stripe', patC: '#b85c16', price: 550 },
+  { name: 'Dino',        shirt: '#4caf50', skin: '#ffe0c0', hat: 'spikes', hatC: '#4caf50', spikeC: '#ffd34d', price: 700 },
+  { name: 'Samurái',     shirt: '#8e1b1b', skin: '#e0ac69', hat: 'kabuto', hatC: '#2a2a2a', pat: 'plates', patC: '#1d1d1d', price: 950 },
+  { name: 'Esqueleto',   shirt: '#141414', skin: '#e8e8e8', hat: 'skull', pat: 'bones', patC: '#e8e8e8', price: 900 },
+  { name: 'Fantasma',    shirt: '#e6ecff', skin: '#e6ecff', hat: 'ghost', glow: '#b9c8ff', alpha: 0.8, price: 1100 },
+  { name: 'Lava',        shirt: '#2a1a14', skin: '#3a2a22', hat: 'hair', hair: '#ff5a1f', pat: 'lava', glow: '#ff5a1f', price: 1300 },
+  { name: 'Galaxia',     shirt: '#1a1240', skin: '#c68e5a', hair: '#7a5cff', hat: 'hood', hatC: '#24185a', pat: 'stars', patC: '#ffffff', glow: '#7a5cff', price: 1600 },
+  { name: 'Diamante',    shirt: '#5ee7ff', skin: '#e0ac69', hair: '#1d1d1d', hat: 'crown', hatC: '#bff6ff', pat: 'gem', glow: '#5ee7ff', price: 2500 },
 ];
 const NEED_TXT = { games: 'partidas', wins: 'victorias', kills: 'bajas' };
-const skinOpen = (i, s) => !!SKINS[i] && (!SKINS[i].need || ((s || loadStats())[SKINS[i].need.k] || 0) >= SKINS[i].need.n);
-let mySk = 0, newSkins = [];
+// Monedas 🪙: se ganan jugando y se gastan en la tienda de skins (todo se guarda en el teléfono)
+let coins = 0, owned = [];
+try { coins = Math.max(0, Math.floor(+localStorage.getItem('zf-coins') || 0)); const o = JSON.parse(localStorage.getItem('zf-owned')); if (Array.isArray(o)) owned = o.filter(Number.isInteger); } catch (e) {}
+function saveWallet() { try { localStorage.setItem('zf-coins', String(coins)); localStorage.setItem('zf-owned', JSON.stringify(owned)); } catch (e) {} }
+const needMet = (i, s) => { const n = SKINS[i].need; return !!n && ((s || loadStats())[n.k] || 0) >= n.n; };
+const skinOpen = (i, s) => !!SKINS[i] && (!SKINS[i].price || owned.includes(i) || needMet(i, s));
+
+let mySk = 0, newSkins = [], roundCoins = 0;
 try { const k = +localStorage.getItem('zf-skin'); if (k >= 0 && k < SKINS.length) mySk = k | 0; } catch (e) {}
 const healDur = e => HEAL_TIME * (chIs(e, 'doc') ? 0.5 : 1);
 const wallCap = e => chIs(e, 'ingeniera') ? 5 : 3;
@@ -644,10 +713,11 @@ function blobs(n, r, spread) {
   for (let i = 0; i < n; i++) out.push({ dx: rand(-spread, spread), dy: rand(-spread, spread), r: r * rand(0.75, 1.05) });
   return out;
 }
-function genMap() {
+function genMap(key) {
+  mapKey = MAPS[key] ? key : pick(MAP_KEYS); TH = MAPS[mapKey];
   circles = []; rects = []; buildings = []; bushes = []; loot = []; ponds = []; roads = [];
   // lagos
-  for (let i = 0, c = 0; i < 80 && c < 3; i++) {
+  for (let i = 0, c = 0; i < 80 && c < TH.lakes; i++) {
     const x = rand(450, WORLD - 450), y = rand(450, WORLD - 450);
     if (ponds.some(p => dist(p.x, p.y, x, y) < 800)) continue;
     const n = 3 + Math.floor(Math.random() * 3);
@@ -655,12 +725,12 @@ function genMap() {
     c++;
   }
   // casas
-  for (let i = 0; i < 500 && buildings.length < 13; i++) {
+  for (let i = 0; i < 900 && buildings.length < TH.houses; i++) {
     const w = Math.round(rand(240, 360)), h = Math.round(rand(200, 300));
     const x = Math.round(rand(150, WORLD - 150 - w)), y = Math.round(rand(150, WORLD - 150 - h));
-    if (buildings.some(b => x < b.x + b.w + 140 && x + w + 140 > b.x && y < b.y + b.h + 140 && y + h + 140 > b.y)) continue;
+    const G = TH.gap; if (buildings.some(b => x < b.x + b.w + G && x + w + G > b.x && y < b.y + b.h + G && y + h + G > b.y)) continue;
     if (ponds.some(p => circleRectHit(p.x, p.y, p.r + 50, { x, y, w, h }))) continue;
-    const b = { x, y, w, h, doors: [], roof: pick(ROOF_COLORS), roofA: 1 };
+    const b = { x, y, w, h, doors: [], roof: pick(TH.roofs), roofA: 1 };
     buildings.push(b);
     const sides = [0, 1, 2, 3].sort(() => Math.random() - 0.5).slice(0, 2);
     const door = (a1, a2) => Math.round(a1 + 30 + Math.random() * (a2 - a1 - 60 - GAP));
@@ -692,14 +762,14 @@ function genMap() {
       fn(x, y, r); c++;
     }
   };
-  place(55, 22, 42, (x, y, r) => {
+  place(TH.rocks, 22, 42, (x, y, r) => {
     const pts = [];
     for (let k = 0; k < 9; k++) { const a = k / 9 * Math.PI * 2 + rand(-0.2, 0.2), rr = r * rand(0.95, 1.15); pts.push(Math.cos(a) * rr, Math.sin(a) * rr); }
     circles.push({ x, y, r, kind: 'rock', pts });
   });
-  place(75, 20, 28, (x, y, r) => circles.push({ x, y, r, kind: 'tree', blobs: blobs(5, r * 1.15, r * 0.55) }));
-  place(30, 32, 32, (x, y) => rects.push({ x: x - 22, y: y - 22, w: 44, h: 44, kind: 'crate', hp: CRATE_HP }));
-  for (let i = 0, c = 0; i < 800 && c < 50; i++) {
+  place(TH.trees, 20, 28, (x, y, r) => circles.push({ x, y, r, kind: 'tree', blobs: blobs(5, r * 1.15, r * 0.55) }));
+  place(TH.crates, 32, 32, (x, y) => rects.push({ x: x - 22, y: y - 22, w: 44, h: 44, kind: 'crate', hp: CRATE_HP }));
+  for (let i = 0, c = 0; i < 800 && c < TH.bushes; i++) {
     const r = rand(34, 52), x = rand(r, WORLD - r), y = rand(r, WORLD - r);
     if (insideBuilding(x, y, r + 10) || pondNear(x, y, r * 0.3)) continue;
     bushes.push({ x, y, r, blobs: blobs(4, r * 0.7, r * 0.35) }); c++;
@@ -718,17 +788,17 @@ function buildGround() {
   g.width = Math.round(WORLD * GS); g.height = Math.round(WORLD * GS);
   const c = g.getContext('2d');
   c.setTransform(GS, 0, 0, GS, 0, 0);
-  c.fillStyle = '#4e8a3e'; c.fillRect(0, 0, WORLD, WORLD);
+  c.fillStyle = TH.ground; c.fillRect(0, 0, WORLD, WORLD);
   for (let i = 0; i < 160; i++) {
     const x = rand(0, WORLD), y = rand(0, WORLD), r = rand(90, 280);
-    const col = Math.random() < 0.5 ? '96,156,70' : '58,112,46';
+    const col = Math.random() < 0.5 ? TH.blobs[0] : TH.blobs[1];
     const gr = c.createRadialGradient(x, y, 0, x, y, r);
     gr.addColorStop(0, `rgba(${col},0.45)`); gr.addColorStop(1, `rgba(${col},0)`);
     c.fillStyle = gr; c.fillRect(x - r, y - r, r * 2, r * 2);
   }
   // caminos
   c.lineCap = 'round'; c.lineJoin = 'round';
-  for (const [w, col] of [[60, '#7d6a48'], [46, '#a08a62'], [10, 'rgba(255,255,255,.06)']]) {
+  for (const [w, col] of [[TH.city ? 84 : 60, TH.road[0]], [TH.city ? 70 : 46, TH.road[1]], [10, 'rgba(255,255,255,.06)']]) {
     c.strokeStyle = col; c.lineWidth = w; c.beginPath();
     for (const r of roads) {
       const mx = (r.x1 + r.x2) / 2 - (r.y2 - r.y1) * r.bend, my = (r.y1 + r.y2) / 2 + (r.x2 - r.x1) * r.bend;
@@ -736,12 +806,17 @@ function buildGround() {
     }
     c.stroke();
   }
+  if (TH.city) { // línea amarilla discontinua en las calles
+    c.strokeStyle = '#f5c518'; c.lineWidth = 4; c.setLineDash([26, 22]); c.beginPath();
+    for (const r of roads) { const mx = (r.x1 + r.x2) / 2 - (r.y2 - r.y1) * r.bend, my = (r.y1 + r.y2) / 2 + (r.x2 - r.x1) * r.bend; c.moveTo(r.x1, r.y1); c.quadraticCurveTo(mx, my, r.x2, r.y2); }
+    c.stroke(); c.setLineDash([]);
+  }
   // lagos
-  c.fillStyle = '#c8b98a';
+  c.fillStyle = TH.shore;
   for (const p of ponds) { c.beginPath(); c.arc(p.x, p.y, p.r + 12, 0, Math.PI * 2); c.fill(); }
-  c.fillStyle = '#2f6fa3';
+  c.fillStyle = TH.water[0];
   for (const p of ponds) { c.beginPath(); c.arc(p.x, p.y, p.r, 0, Math.PI * 2); c.fill(); }
-  c.fillStyle = '#3b86c4';
+  c.fillStyle = TH.water[1];
   for (const p of ponds) { c.beginPath(); c.arc(p.x - 6, p.y - 6, p.r * 0.72, 0, Math.PI * 2); c.fill(); }
   c.strokeStyle = 'rgba(255,255,255,.18)'; c.lineWidth = 2;
   for (const p of ponds) for (let k = 0; k < 3; k++) {
@@ -749,7 +824,7 @@ function buildGround() {
     c.beginPath(); c.arc(p.x + Math.cos(a) * rr, p.y + Math.sin(a) * rr, rand(8, 16), Math.PI * 1.1, Math.PI * 1.9); c.stroke();
   }
   // hierba
-  for (const [col, n] of [['rgba(25,65,22,.35)', 6000], ['rgba(140,200,100,.25)', 3500]]) {
+  for (const [col, n] of [[TH.grass[0], TH.grassN[0]], [TH.grass[1], TH.grassN[1]]]) {
     c.strokeStyle = col; c.lineWidth = 1.6; c.beginPath();
     for (let i = 0; i < n; i++) {
       const x = rand(0, WORLD), y = rand(0, WORLD);
@@ -762,12 +837,12 @@ function buildGround() {
   for (let i = 0; i < 700; i++) {
     const x = rand(0, WORLD), y = rand(0, WORLD);
     if (pondNear(x, y, 10)) continue;
-    c.fillStyle = Math.random() < 0.3 ? 'rgba(120,120,110,.6)' : pick(['#ffd34d', '#ff8fa3', '#ffffff', '#b197fc']);
+    c.fillStyle = Math.random() < 0.3 ? 'rgba(120,120,110,.6)' : pick(TH.dots);
     c.beginPath(); c.arc(x, y, rand(1.8, 3), 0, Math.PI * 2); c.fill();
   }
   // suelos de las casas
   for (const b of buildings) {
-    c.fillStyle = '#a3865f'; c.fillRect(b.x, b.y, b.w, b.h);
+    c.fillStyle = TH.floor; c.fillRect(b.x, b.y, b.w, b.h);
     c.strokeStyle = 'rgba(60,40,20,.22)'; c.lineWidth = 1.5; c.beginPath();
     for (let y = b.y + 22, row = 0; y < b.y + b.h; y += 22, row++) {
       c.moveTo(b.x, y); c.lineTo(b.x + b.w, y);
@@ -786,7 +861,7 @@ function buildGround() {
   const m = mini.getContext('2d');
   m.drawImage(g, 0, 0, M, M);
   for (const b of buildings) { m.fillStyle = b.roof; m.fillRect(b.x * s, b.y * s, b.w * s, b.h * s); }
-  for (const o of circles) { m.fillStyle = o.kind === 'rock' ? '#8b9096' : '#2a5e27'; m.beginPath(); m.arc(o.x * s, o.y * s, Math.max(1.2, o.r * s), 0, Math.PI * 2); m.fill(); }
+  for (const o of circles) { m.fillStyle = o.kind === 'rock' ? TH.rock[0] : TH.tree[1]; m.beginPath(); m.arc(o.x * s, o.y * s, Math.max(1.2, o.r * s), 0, Math.PI * 2); m.fill(); }
 }
 
 /* ---------- Jugadores ---------- */
@@ -2129,6 +2204,7 @@ function drawLoot(it) {
 function drawPerson(c, sk, x, y, ang, o = {}) {
   const S = SKINS[sk] || SKINS[0], dark = 'rgba(0,0,0,.5)';
   c.save(); c.translate(x, y); c.rotate(ang);
+  if (S.alpha) c.globalAlpha *= S.alpha;
   c.lineCap = 'round'; c.lineJoin = 'round';
   // mochila
   if (S.pack) { c.fillStyle = S.pack; c.beginPath(); c.ellipse(-10, 0, 5, 9, 0, 0, Math.PI * 2); c.fill(); c.strokeStyle = dark; c.lineWidth = 1.5; c.stroke(); }
@@ -2209,6 +2285,56 @@ function drawHead(c, S, av, hit) {
       c.strokeStyle = S.hair; c.lineWidth = 4; c.beginPath(); c.moveTo(-8, 0); c.lineTo(5, 0); c.stroke();
       c.shadowBlur = 0;
       break;
+    case 'cowboy': case 'safari': // sombrero de ala ancha
+      c.beginPath(); c.ellipse(-1, 0, R + 5, R + 6, 0, 0, Math.PI * 2); c.fillStyle = S.hatC; c.fill(); ring();
+      c.beginPath(); c.ellipse(-1, 0, R - 2, R - 1.5, 0, 0, Math.PI * 2); c.fillStyle = 'rgba(0,0,0,.18)'; c.fill();
+      c.strokeStyle = S.hat === 'cowboy' ? '#2a1a0e' : '#8a6d3a'; c.lineWidth = 1.6; c.beginPath(); c.ellipse(-1, 0, R - 2, R - 1.5, 0, 0, Math.PI * 2); c.stroke();
+      break;
+    case 'chef':
+      for (const [dx, dy] of [[-3, -4], [-3, 4], [2, 0], [-6, 0]]) { c.beginPath(); c.arc(dx, dy, 5.5, 0, Math.PI * 2); c.fillStyle = '#fff'; c.fill(); ring(); }
+      c.beginPath(); c.arc(-2, 0, 5, 0, Math.PI * 2); c.fillStyle = '#fff'; c.fill();
+      break;
+    case 'knight':
+      c.beginPath(); c.arc(0, 0, R + 1.5, 0, Math.PI * 2); c.fillStyle = S.hatC; c.fill(); ring();
+      c.fillStyle = '#1d2128'; c.fillRect(4, -5, 2.5, 10);
+      c.strokeStyle = '#e5484d'; c.lineWidth = 3; c.beginPath(); c.moveTo(-10, 0); c.lineTo(2, 0); c.stroke();
+      break;
+    case 'horns':
+      hair();
+      c.beginPath(); c.arc(-0.5, 0, R - 0.5, 0, Math.PI * 2); c.fillStyle = S.hatC; c.fill(); ring();
+      c.fillStyle = '#f2ead3';
+      for (const sgn of [1, -1]) { c.beginPath(); c.moveTo(-2, sgn * 6); c.quadraticCurveTo(2, sgn * 15, 8, sgn * 15); c.lineTo(1, sgn * 7); c.closePath(); c.fill(); ring(); }
+      break;
+    case 'wizard':
+      c.beginPath(); c.arc(-1, 0, R + 4, 0, Math.PI * 2); c.fillStyle = S.hatC; c.fill(); ring();
+      c.beginPath(); for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2, r = i % 2 ? 2.5 : 6; c.lineTo(-1 + Math.cos(a) * r, Math.sin(a) * r); }
+      c.closePath(); c.fillStyle = '#ffd34d'; c.fill();
+      break;
+    case 'ears':
+      c.beginPath(); c.arc(-1.5, 0, R + 0.5, Math.PI * 0.3, Math.PI * 1.7); c.closePath(); c.fillStyle = S.hatC; c.fill(); ring();
+      for (const sgn of [1, -1]) { c.beginPath(); c.moveTo(0, sgn * 4); c.lineTo(-2, sgn * 13); c.lineTo(-7, sgn * 6); c.closePath(); c.fillStyle = S.hatC; c.fill(); ring();
+        c.beginPath(); c.moveTo(-1, sgn * 6); c.lineTo(-2.5, sgn * 10.5); c.lineTo(-5, sgn * 7); c.closePath(); c.fillStyle = '#ffb3c1'; c.fill(); }
+      break;
+    case 'spikes':
+      c.fillStyle = S.spikeC || '#ffd34d';
+      for (let k = 0; k < 4; k++) { const x = -4 - k * 4.5; c.beginPath(); c.moveTo(x + 2.5, -2.5); c.lineTo(x - 2, 0); c.lineTo(x + 2.5, 2.5); c.closePath(); c.fill(); }
+      c.beginPath(); c.arc(-1, 0, R + 0.5, Math.PI * 0.28, Math.PI * 1.72); c.closePath(); c.fillStyle = S.hatC; c.fill(); ring();
+      c.fillStyle = '#fff'; for (const sgn of [1, -1]) { c.beginPath(); c.arc(4, sgn * 6, 2, 0, Math.PI * 2); c.fill(); }
+      break;
+    case 'kabuto':
+      c.beginPath(); c.arc(0, 0, R + 1.5, 0, Math.PI * 2); c.fillStyle = S.hatC; c.fill(); ring();
+      c.strokeStyle = '#c9a227'; c.lineWidth = 2.5; c.beginPath(); c.moveTo(6, -9); c.quadraticCurveTo(2, 0, 6, 9); c.stroke();
+      c.strokeStyle = '#8e1b1b'; c.lineWidth = 1.5; c.beginPath(); c.arc(0, 0, R - 2, Math.PI * 0.6, Math.PI * 1.4); c.stroke();
+      break;
+    case 'skull':
+      c.beginPath(); c.arc(0, 0, R, 0, Math.PI * 2); c.fillStyle = '#ececec'; c.fill(); ring();
+      c.fillStyle = '#141414'; for (const sgn of [1, -1]) { c.beginPath(); c.arc(3.5, sgn * 3.2, 2.2, 0, Math.PI * 2); c.fill(); }
+      c.fillRect(6.5, -1, 1.5, 2);
+      break;
+    case 'ghost':
+      c.beginPath(); c.arc(0, 0, R + 0.5, 0, Math.PI * 2); c.fillStyle = '#f4f6ff'; c.fill();
+      c.fillStyle = '#2a2f5a'; for (const sgn of [1, -1]) { c.beginPath(); c.ellipse(3.5, sgn * 3, 1.6, 2.4, 0, 0, Math.PI * 2); c.fill(); }
+      break;
     case 'crown':
       hair();
       c.beginPath();
@@ -2234,6 +2360,23 @@ function skinPattern(c, S) {
     c.strokeStyle = 'rgba(255,255,255,.8)'; c.lineWidth = 1.2; c.beginPath();
     for (const [x, y] of [[-4, -7], [0, 7]]) for (let i = 0; i < 3; i++) { const a = i * Math.PI / 3; c.moveTo(x - Math.cos(a) * 3, y - Math.sin(a) * 3); c.lineTo(x + Math.cos(a) * 3, y + Math.sin(a) * 3); }
     c.stroke();
+  } else if (S.pat === 'vest') { c.fillStyle = S.patC; c.fillRect(-12, -14, 22, 6); c.fillRect(-12, 8, 22, 6); }
+  else if (S.pat === 'reflect') { c.fillStyle = S.patC; c.fillRect(-12, -9, 22, 3); c.fillRect(-12, 6, 22, 3); }
+  else if (S.pat === 'cross') { c.fillStyle = S.patC; c.fillRect(-5, -2, 8, 4); c.fillRect(-3, -4, 4, 8); }
+  else if (S.pat === 'buttons') { c.fillStyle = S.patC; for (const y of [-6, 0, 6]) { c.beginPath(); c.arc(-4, y, 1.2, 0, Math.PI * 2); c.fill(); } }
+  else if (S.pat === 'fur') { c.fillStyle = '#d9c3a0'; c.beginPath(); c.ellipse(-2, 0, 5, 14, 0, 0, Math.PI * 2); c.fill(); }
+  else if (S.pat === 'stars') {
+    c.fillStyle = S.patC;
+    for (const [x, y, r] of [[-6, -8, 1.4], [1, -3, 1], [-3, 6, 1.6], [3, 10, 1], [-8, 2, 0.9], [2, -11, 0.9]]) { c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); }
+  } else if (S.pat === 'plates') { c.strokeStyle = S.patC; c.lineWidth = 1.4; c.beginPath(); for (const y of [-9, -4, 1, 6, 11]) { c.moveTo(-12, y); c.lineTo(10, y); } c.stroke(); }
+  else if (S.pat === 'bones') {
+    c.strokeStyle = S.patC; c.lineWidth = 1.6; c.beginPath(); c.moveTo(-9, 0); c.lineTo(5, 0);
+    for (const y of [-8, -4, 4, 8]) { c.moveTo(-6, y); c.lineTo(3, y * 0.6); } c.stroke();
+  } else if (S.pat === 'lava') {
+    c.strokeStyle = '#ff7a1f'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(-10, -9); c.lineTo(-4, -3); c.lineTo(-7, 3); c.lineTo(0, 9); c.moveTo(-4, -3); c.lineTo(4, -7); c.moveTo(-7, 3); c.lineTo(3, 3); c.stroke();
+  } else if (S.pat === 'gem') {
+    c.strokeStyle = 'rgba(255,255,255,.85)'; c.lineWidth = 1.1; c.beginPath();
+    c.moveTo(-10, 0); c.lineTo(-2, -12); c.lineTo(6, 0); c.lineTo(-2, 12); c.closePath(); c.moveTo(-10, 0); c.lineTo(6, 0); c.moveTo(-2, -12); c.lineTo(-2, 12); c.stroke();
   } else if (S.pat === 'royal') {
     c.fillStyle = S.patC; c.fillRect(-12, -3, 22, 6);
     c.fillStyle = '#ffd700'; c.beginPath(); c.arc(-2, 0, 1.6, 0, Math.PI * 2); c.fill();
@@ -2305,6 +2448,21 @@ function drawGlider(e) {
   else if (teamsOn() && player && e.team === player.team) txt('🤝 ' + e.name, e.x, e.y - h - 80 * s, 13, '#5dffb1', 'center', 800);
   else if (e.human) txt(e.name, e.x, e.y - h - 80 * s, 13, e.color, 'center', 800);
 }
+// Cactus (mapa desierto): vista desde arriba, con costillas, espinas y brazos
+function drawCactus(c) {
+  const r = c.r * 0.8;
+  ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.beginPath(); ctx.arc(c.x + 5, c.y + 6, r, 0, Math.PI * 2); ctx.fill();
+  for (const [dx, dy] of [[r * 0.95, -r * 0.2], [-r * 0.9, r * 0.3]]) {
+    ctx.beginPath(); ctx.arc(c.x + dx, c.y + dy, r * 0.45, 0, Math.PI * 2); ctx.fillStyle = TH.tree[1]; ctx.fill();
+    ctx.strokeStyle = TH.tree[0]; ctx.lineWidth = 2; ctx.stroke();
+  }
+  ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI * 2); ctx.fillStyle = TH.tree[1]; ctx.fill();
+  ctx.strokeStyle = TH.tree[0]; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.strokeStyle = TH.tree[2]; ctx.lineWidth = 2; ctx.beginPath();
+  for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; ctx.moveTo(c.x + Math.cos(a) * r * 0.25, c.y + Math.sin(a) * r * 0.25); ctx.lineTo(c.x + Math.cos(a) * r * 0.9, c.y + Math.sin(a) * r * 0.9); }
+  ctx.stroke();
+  ctx.fillStyle = '#ff7ab8'; ctx.beginPath(); ctx.arc(c.x - r * 0.15, c.y - r * 0.15, r * 0.18, 0, Math.PI * 2); ctx.fill();
+}
 function drawPlane() {
   if (plane.t > plane.dur + 4) return;
   for (const shadow of [true, false]) {
@@ -2329,7 +2487,7 @@ function drawPlane() {
 }
 function render(dt) {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  ctx.fillStyle = '#132a12'; ctx.fillRect(0, 0, VW, VH);
+  ctx.fillStyle = TH.bg; ctx.fillRect(0, 0, VW, VH);
   if (!ents || !ground) return;
   updateCamera(dt);
   const z = cam.z, sh = shake > 0 ? shake * 14 : 0;
@@ -2395,7 +2553,7 @@ function render(dt) {
     if (c.kind !== 'rock' || !vis(c.x, c.y, c.r * 1.2)) continue;
     ctx.beginPath();
     for (let i = 0; i < c.pts.length; i += 2) { if (i) ctx.lineTo(c.x + c.pts[i], c.y + c.pts[i + 1]); else ctx.moveTo(c.x + c.pts[i], c.y + c.pts[i + 1]); }
-    ctx.closePath(); ctx.fillStyle = '#8f949b'; ctx.fill(); ctx.strokeStyle = '#5d6268'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.closePath(); ctx.fillStyle = TH.rock[0]; ctx.fill(); ctx.strokeStyle = TH.rock[1]; ctx.lineWidth = 3; ctx.stroke();
     ctx.beginPath();
     for (let i = 0; i < c.pts.length; i += 2) { const px = c.x - c.r * 0.18 + c.pts[i] * 0.55, py = c.y - c.r * 0.22 + c.pts[i + 1] * 0.55; if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); }
     ctx.closePath(); ctx.fillStyle = 'rgba(255,255,255,.13)'; ctx.fill();
@@ -2422,11 +2580,11 @@ function render(dt) {
     if (!vis(b.x, b.y, b.r * 1.3)) continue;
     const mine = f && dist(b.x, b.y, f.x, f.y) < b.r;
     ctx.globalAlpha = mine ? 0.5 : 0.96;
-    ctx.fillStyle = '#25602a';
+    ctx.fillStyle = TH.bush[0];
     for (const k of b.blobs) { ctx.beginPath(); ctx.arc(b.x + k.dx, b.y + k.dy, k.r + 3, 0, Math.PI * 2); ctx.fill(); }
-    ctx.fillStyle = '#3d8c3a';
+    ctx.fillStyle = TH.bush[1];
     for (const k of b.blobs) { ctx.beginPath(); ctx.arc(b.x + k.dx, b.y + k.dy, k.r, 0, Math.PI * 2); ctx.fill(); }
-    ctx.fillStyle = '#56a84c';
+    ctx.fillStyle = TH.bush[2];
     for (const k of b.blobs) { ctx.beginPath(); ctx.arc(b.x + k.dx - 3, b.y + k.dy - 4, k.r * 0.45, 0, Math.PI * 2); ctx.fill(); }
     ctx.globalAlpha = 1;
   }
@@ -2435,12 +2593,14 @@ function render(dt) {
     if (c.kind !== 'tree' || !vis(c.x, c.y, c.r * 2)) continue;
     const under = f && dist(f.x, f.y, c.x, c.y) < c.r * 1.8;
     ctx.globalAlpha = under ? 0.42 : 0.97;
-    ctx.fillStyle = '#1c4a1b';
+    if (TH.cactus) { drawCactus(c); ctx.globalAlpha = 1; continue; }
+    ctx.fillStyle = TH.tree[0];
     for (const k of c.blobs) { ctx.beginPath(); ctx.arc(c.x + k.dx, c.y + k.dy, k.r + 3, 0, Math.PI * 2); ctx.fill(); }
-    ctx.fillStyle = '#2f6e2b';
+    ctx.fillStyle = TH.tree[1];
     for (const k of c.blobs) { ctx.beginPath(); ctx.arc(c.x + k.dx, c.y + k.dy, k.r, 0, Math.PI * 2); ctx.fill(); }
-    ctx.fillStyle = '#3f8f3a';
+    ctx.fillStyle = TH.tree[2];
     for (const k of c.blobs) { ctx.beginPath(); ctx.arc(c.x + k.dx - 4, c.y + k.dy - 5, k.r * 0.5, 0, Math.PI * 2); ctx.fill(); }
+    if (TH.snow) { ctx.fillStyle = 'rgba(250,252,255,.9)'; for (const k of c.blobs) { ctx.beginPath(); ctx.arc(c.x + k.dx - 5, c.y + k.dy - 6, k.r * 0.38, 0, Math.PI * 2); ctx.fill(); } }
     ctx.globalAlpha = 1;
   }
   // techos
@@ -2945,16 +3105,17 @@ function loadStats() {
 }
 function showStats() {
   const s = loadStats();
-  $('stats').textContent = s.games
+  $('stats').textContent = (s.games
     ? `Partidas: ${s.games} · Victorias: ${s.wins} · Bajas totales: ${s.kills} · Mejor puesto: #${s.best}`
-    : 'Todos empiezan con pistola. Salta del avión, busca armas raras en las casas y vigila los suministros aéreos.';
+    : 'Todos empiezan con pistola. Salta del avión, busca armas raras en las casas y vigila los suministros aéreos.')
+    + ` · 🪙 ${coins} monedas`;
 }
 function resetRound() {
   bullets = []; particles = []; feed = []; nades = []; blasts = []; drops = []; floats = []; indicators = [];
   shake = 0; announce = null; visPoly = null;
   time = 0; dmgDealt = 0; spectate = null; hitMarker = killMarker = hurtFlash = 0;
   specMode = false; specLabel = ''; resToken++; $('spec').classList.add('hidden');
-  roundStats = null; emoOpen = false;
+  roundStats = null; emoOpen = false; roundCoins = 0;
   mouse.down = mouse.pressed = false; showMap = false;
   touch.move = touch.aim = null;
   for (const k in keys) keys[k] = false;
@@ -2962,7 +3123,7 @@ function resetRound() {
   shields = []; boxes = []; boxUiSig = ''; $('boxUI').classList.add('hidden');
 }
 function setupWorld() {
-  genMap(); rects.forEach((q, i) => { q.id = i; }); buildGround(); initPlane(); spawnEnts([{ name: 'Tú' }]); initZone();
+  genMap($('map').value); rects.forEach((q, i) => { q.id = i; }); buildGround(); initPlane(); spawnEnts([{ name: 'Tú' }]); initZone();
   resetRound(); spawnVehicles();
 }
 function enterPlay() {
@@ -2976,7 +3137,7 @@ function enterPlay() {
 function startGame(humans) {
   diff = DIFFS[$('diff').value] || DIFFS.normal;
   teamSize = [1, 2, 4].includes(+$('mode').value) ? +$('mode').value : 1;
-  genMap(); rects.forEach((q, i) => { q.id = i; }); buildGround(); initPlane(); spawnEnts(humans); initZone();
+  genMap($('map').value); rects.forEach((q, i) => { q.id = i; }); buildGround(); initPlane(); spawnEnts(humans); initZone();
   resetRound(); spawnVehicles();
   enterPlay();
 }
@@ -2999,8 +3160,11 @@ function saveRoundStats(win, place) {
   const r = roundStats || (roundStats = { saved: false, win: false });
   try {
     const s = loadStats(), before = SKINS.map((_, i) => skinOpen(i, s));
-    if (!r.saved) { s.games++; s.kills += player.kills; }
-    if (win && !r.win) s.wins++;
+    // monedas: por jugar, por cada baja, por buen puesto y por ganar
+    let earn = 0;
+    if (!r.saved) { s.games++; s.kills += player.kills; earn += 10 + player.kills * 15 + (place > 0 && place <= 10 ? 10 : 0) + (place > 0 && place <= 3 ? 20 : 0); }
+    if (win && !r.win) { s.wins++; earn += 60; }
+    if (earn) { coins += earn; roundCoins += earn; saveWallet(); }
     if (place > 0) s.best = s.best ? Math.min(s.best, place) : place;
     localStorage.setItem('zf-stats', JSON.stringify(s));
     newSkins = newSkins.concat(SKINS.filter((_, i) => !before[i] && skinOpen(i, s)).map(k => k.name));
@@ -3075,6 +3239,7 @@ function showResult(win, winner, delay) {
       : (player.killer === player ? 'Tu propia granada acabó contigo.'
         : player.killer ? `Te eliminó ${player.killer.name}.` : 'La zona acabó contigo.')
         + (winner && winner !== player ? (tm ? ` Ganó el equipo de ${winner.name}.` : ` Ganó ${winner.name}.`) : '');
+    $('resCoins').textContent = roundCoins ? `🪙 +${roundCoins} monedas · tienes ${coins}` : `🪙 Tienes ${coins} monedas`;
     if (newSkins.length) { $('resSub').textContent += ` 🎁 ¡Nueva skin desbloqueada: ${newSkins.join(', ')}! Pruébala en 👕 Skin.`; newSkins = []; showSkinBtns(); }
     $('resPlace').textContent = tm ?`#${place} de ${Math.ceil(totalPlayers / teamSize)} equipos` : `#${place} de ${totalPlayers}`;
     $('resKills').textContent = player.kills;
@@ -3196,6 +3361,8 @@ function showLobby() {
   $('lobbyStart').style.display = host ? '' : 'none';
   $('lobbyShare').style.display = host && net.code ? '' : 'none';
   $('lobbyMode').disabled = !host;
+  $('lobbyMap').disabled = !host;
+  $('lobbyMap').value = host ? $('map').value : net.lobbyMap || 'azar';
   $('lobbyMode').value = host ? $('mode').value : String(net.lobbyTs || 1);
   $('lobbyHint').textContent = host ?'Pasa el código a tus amigos y vuelve aquí: deja el juego abierto en pantalla mientras entran. Cuando estén todos, pulsa Empezar. Los huecos se rellenan con bots.' : '';
   renderLobby();
@@ -3341,10 +3508,11 @@ function hostLobbyUpdate() {
   net.lobbyCh = [myCh].concat(net.conns.map(c => c.pch || 0));
   renderLobby();
   const ts = +$('mode').value || 1;
-  for (const c of net.conns) { try { netSend(c, { t: 'lobby', names: net.lobby, avs: net.lobbyAv, chs: net.lobbyCh, ts }); } catch (e) {} }
+  for (const c of net.conns) { try { netSend(c, { t: 'lobby', names: net.lobby, avs: net.lobbyAv, chs: net.lobbyCh, ts, mp: $('map').value }); } catch (e) {} }
 }
 function packMap() {
   return {
+    t: mapKey,
     c: circles.map(c => [r1(c.x), r1(c.y), r1(c.r), c.kind === 'rock' ? 0 : 1, c.kind === 'rock' ? c.pts.map(r1) : c.blobs.map(b => [r1(b.dx), r1(b.dy), r1(b.r)])]),
     r: rects.map(q => [r1(q.x), r1(q.y), r1(q.w), r1(q.h), q.kind === 'wall' ? 0 : 1, q.id]),
     b: buildings.map(b => [b.x, b.y, b.w, b.h, b.roof, b.doors.map(d => [r1(d.x), r1(d.y), d.nx, d.ny])]),
@@ -3354,6 +3522,7 @@ function packMap() {
   };
 }
 function unpackMap(m) {
+  mapKey = MAPS[m.t] ? m.t : 'bosque'; TH = MAPS[mapKey];
   circles = m.c.map(a => a[3] === 0
     ? { x: a[0], y: a[1], r: a[2], kind: 'rock', pts: a[4] }
     : { x: a[0], y: a[1], r: a[2], kind: 'tree', blobs: a[4].map(k => ({ dx: k[0], dy: k[1], r: k[2] })) });
@@ -3532,6 +3701,7 @@ function clientOnData(m) {
     net.lobbyAv = Array.isArray(m.avs) ? m.avs.map(cleanAv) : [];
     net.lobbyCh = Array.isArray(m.chs) ? m.chs.map(c => CHARS[c] ? c : 0) : [];
     net.lobbyTs = [1, 2, 4].includes(m.ts) ? m.ts : 1;
+    net.lobbyMap = MAPS[m.mp] ? m.mp : 'azar'; $('lobbyMap').value = net.lobbyMap;
     $('lobbyMode').value = String(net.lobbyTs);
     renderLobby();
   }
@@ -3942,30 +4112,60 @@ function setSkin(i) {
   showSkinBtns();
   if (net.role === 'client' && net.host && net.host.open) { try { netSend(net.host, { t: 'hello', name: getName(), av: myAv, ch: myCh, sk: mySk }); } catch (e) {} }
 }
+// Tienda: las skins con precio se compran con monedas (o se ganan con su logro). Comprar pide un segundo toque.
+let pendingBuy = -1;
+const SHOP_INFO = 'Toca una skin para usarla. Las 🔒 se compran con monedas 🪙 que ganas jugando.';
+const preview = new Map(); // las vistas previas se dibujan una sola vez
 function openSkins() {
   const grid = $('skinsGrid'), st = loadStats();
+  $('skinsCoins').textContent = `🪙 ${coins}`;
   grid.textContent = '';
   SKINS.forEach((S, i) => {
     const open = skinOpen(i, st), card = document.createElement('button');
-    card.type = 'button'; card.className = 'skin' + (i === mySk ? ' sel' : '') + (open ? '' : ' lock');
-    const cv = document.createElement('canvas'); cv.width = cv.height = 144; skinPreview(cv, i, true); card.appendChild(cv);
+    card.type = 'button'; card.className = 'skin' + (i === mySk ? ' sel' : '') + (open ? '' : ' lock') + (i === pendingBuy ? ' buy' : '');
+    let cv = preview.get(i);
+    if (!cv) { cv = document.createElement('canvas'); cv.width = cv.height = 144; skinPreview(cv, i, true); preview.set(i, cv); }
+    card.appendChild(cv);
     const nm = document.createElement('span'); nm.textContent = (open ? '' : '🔒 ') + S.name; card.appendChild(nm);
     const sm = document.createElement('small');
-    sm.textContent = open ? (i === mySk ? 'En uso' : 'Disponible') : `${Math.min(st[S.need.k] || 0, S.need.n)}/${S.need.n} ${NEED_TXT[S.need.k]}`;
+    sm.textContent = open ? (i === mySk ? 'En uso' : 'Tuya')
+      : i === pendingBuy ? '¡Toca para comprar!'
+      : `🪙 ${S.price}` + (S.need ? ` · o ${S.need.n} ${NEED_TXT[S.need.k]}` : '');
+    if (!open && coins >= S.price) sm.className = 'afford';
     card.appendChild(sm);
     card.onclick = () => {
-      if (!open) { $('skinsInfo').textContent = `🔒 ${S.name}: consigue ${S.need.n} ${NEED_TXT[S.need.k]} para desbloquearla.`; return; }
-      setSkin(i); openSkins();
+      const info = $('skinsInfo');
+      if (open) { pendingBuy = -1; info.textContent = SHOP_INFO; setSkin(i); openSkins(); return; }
+      if (coins < S.price) {
+        pendingBuy = -1;
+        info.textContent = `🔒 ${S.name} cuesta 🪙 ${S.price}. Te faltan ${S.price - coins} monedas` + (S.need ? ` (o consigue ${S.need.n} ${NEED_TXT[S.need.k]}; llevas ${st[S.need.k] || 0}).` : '.');
+        openSkins(); return;
+      }
+      if (pendingBuy !== i) { pendingBuy = i; info.textContent = `¿Comprar ${S.name} por 🪙 ${S.price}? Toca otra vez para confirmar.`; openSkins(); return; }
+      coins -= S.price; owned.push(i); saveWallet(); pendingBuy = -1;
+      info.textContent = `🎉 ¡Compraste ${S.name}! Ya la llevas puesta.`;
+      buzz([40, 40, 90]); try { ac(); sfx.heal(); } catch (e) {}
+      setSkin(i); showStats(); openSkins();
     };
     grid.appendChild(card);
   });
   $('skinsBox').classList.remove('hidden');
 }
-$('skinBtn').onclick = openSkins;
-$('lobbySkinBtn').onclick = openSkins;
-$('skinsOk').onclick = () => { $('skinsBox').classList.add('hidden'); $('skinsInfo').textContent = 'Elige cómo se ve tu personaje. Las 🔒 se desbloquean jugando.'; };
+$('skinBtn').onclick = () => { $('skinsInfo').textContent = SHOP_INFO; openSkins(); };
+$('lobbySkinBtn').onclick = () => { $('skinsInfo').textContent = SHOP_INFO; openSkins(); };
+$('skinsOk').onclick = () => { $('skinsBox').classList.add('hidden'); pendingBuy = -1; };
 if (!skinOpen(mySk)) mySk = 0;
 showSkinBtns();
+// Mapa (se recuerda; en la sala lo elige el anfitrión)
+try { const m = localStorage.getItem('zf-map'); if (m === 'azar' || MAPS[m]) $('map').value = m; } catch (e) {}
+function setMap(v) {
+  if (v !== 'azar' && !MAPS[v]) return;
+  $('map').value = $('lobbyMap').value = v;
+  try { localStorage.setItem('zf-map', v); } catch (e) {}
+  if (net.role === 'host') hostLobbyUpdate();
+}
+$('map').onchange = () => setMap($('map').value);
+$('lobbyMap').onchange = () => { if (net.role === 'host') setMap($('lobbyMap').value); };
 $('mode').onchange = () => setMode($('mode').value);
 $('lobbyMode').onchange = () => { if (net.role === 'host') setMode($('lobbyMode').value); };
 // Vibración (solo si el teléfono la permite; en iPhone el navegador no deja)
