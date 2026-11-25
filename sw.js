@@ -1,6 +1,6 @@
 // Service worker de Zona Final: guarda el juego para que abra sin conexión.
 // Cuando cambies index.html, sube el número de versión para que los teléfonos descarguen la nueva.
-const VERSION = 'zf-v10';
+const VERSION = 'zf-v11';
 const SHELL = [
   './',
   './index.html',
