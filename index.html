@@ -2257,10 +2257,19 @@ function loadAvFile(file) {
 }
 function menuMsg(t) { $('menuMsg').textContent = t || ''; }
 function lobbyMsg(t) { $('lobbyMsg').textContent = t || ''; }
+// Servidores para conectar los teléfonos. STUN: conexión directa. TURN (Metered, plan gratis 500 MB/mes):
+// puente que solo se usa cuando la red bloquea la conexión directa. Esta credencial está pensada para ir en el cliente.
+const TURN_USER = '6cf62c465907ffac31766ae6', TURN_PASS = 'x4fxrojSgndR1HDA';
 function peerOpts() {
-  return { debug: 0, config: { iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' },
-  ] } };
+  const ice = [
+    { urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun.relay.metered.ca:80' },
+  ];
+  if (TURN_PASS) ice.push({
+    urls: ['turn:global.relay.metered.ca:80', 'turn:global.relay.metered.ca:80?transport=tcp',
+      'turn:global.relay.metered.ca:443', 'turns:global.relay.metered.ca:443?transport=tcp'],
+    username: TURN_USER, credential: TURN_PASS,
+  });
+  return { debug: 0, config: { iceServers: ice } };
 }
 function peerErrorText(err) {
   const t = err && err.type;
