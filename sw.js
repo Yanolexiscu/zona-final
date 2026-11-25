@@ -1,13 +1,14 @@
 // Service worker de Zona Final: guarda el juego para que abra sin conexión.
 // Cuando cambies index.html, sube el número de versión para que los teléfonos descarguen la nueva.
-const VERSION = 'zf-v14';
+const VERSION = 'zf-v15';
 const SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
-  './icons/apple-touch-icon.png'
+  './icons/apple-touch-icon.png',
+  './lib/three.module.min.js'
 ];
 
 self.addEventListener('install', (e) => {
