@@ -155,6 +155,16 @@ $('resume').onclick = () => setPause(false);
 $('quit').onclick = () => { leaveRoom(); toMenu(); };
 // Modo de juego (se recuerda en el teléfono); en la sala solo lo cambia el anfitrión
 try { const m = localStorage.getItem('zf-mode'); if (['1', '2', '4'].includes(m)) $('mode').value = m; } catch (e) {}
+function setGm(v) {
+  if (GM_DESC[v] == null) return;
+  $('gm').value = $('lobbyGm').value = v;
+  $('gmDesc').textContent = GM_DESC[v];
+  try { localStorage.setItem('zf-gm', v); } catch (e) {}
+  if (net.role === 'host') hostLobbyUpdate();
+}
+$('gm').onchange = () => setGm($('gm').value);
+$('lobbyGm').onchange = () => { if (net.role === 'host') setGm($('lobbyGm').value); else $('lobbyGm').value = $('gm').value; };
+try { const v = localStorage.getItem('zf-gm'); setGm(GM_DESC[v] != null ? v : 'normal'); } catch (e) { setGm('normal'); }
 function setMode(v) {
   if (!['1', '2', '4'].includes(v)) return;
   $('mode').value = v; $('lobbyMode').value = v;

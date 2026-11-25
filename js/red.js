@@ -234,7 +234,7 @@ function startMsgFor(c, map) {
   const pl = { x0: r1(plane.x0), y0: r1(plane.y0), x1: r1(plane.x1), y1: r1(plane.y1), ang: r2(plane.ang), dur: plane.dur };
   return { t: 'start', rd: net.round, map: map || packMap(), plane: pl, pt: r2(plane.t), names: ents.map(e => e.name), colors: ents.map(e => e.color),
     humans: ents.filter(e => e.human).map(e => e.id), avs: ents.map(e => e.av || ''), chs: ents.map(e => e.ch), sks: ents.map(e => e.sk),
-    ts: teamSize, you: c.ent.id, diff: $('diff').value };
+    ts: teamSize, you: c.ent.id, diff: $('diff').value, gm: gmode, wr: weekRule ? weekRule.id : '', zw: zWave, dr: duelRound, dsc: duelScore };
 }
 function hostRejoin(conn) {
   const e = ents.find(o => o.human && o.rk === conn.rk && o.alive && !o.disc && o !== player);
@@ -254,7 +254,7 @@ function hostLobbyUpdate() {
   net.lobbyCh = [myCh].concat(net.conns.map(c => c.pch || 0));
   renderLobby();
   const ts = +$('mode').value || 1;
-  for (const c of net.conns) { try { netSend(c, { t: 'lobby', names: net.lobby, avs: net.lobbyAv, chs: net.lobbyCh, ts, mp: $('map').value }); } catch (e) {} }
+  for (const c of net.conns) { try { netSend(c, { t: 'lobby', names: net.lobby, avs: net.lobbyAv, chs: net.lobbyCh, ts, mp: $('map').value, gm: $('gm').value }); } catch (e) {} }
 }
 function packMap() {
   return {
@@ -466,6 +466,7 @@ function clientOnData(m) {
     net.lobbyCh = Array.isArray(m.chs) ? m.chs.map(c => CHARS[c] ? c : 0) : [];
     net.lobbyTs = [1, 2, 4].includes(m.ts) ? m.ts : 1;
     net.lobbyMap = MAPS[m.mp] ? m.mp : 'azar'; $('lobbyMap').value = net.lobbyMap;
+    if (GM_DESC[m.gm] != null) { $('lobbyGm').value = m.gm; $('gm').value = m.gm; }
     $('lobbyMode').value = String(net.lobbyTs);
     renderLobby();
   }
@@ -483,12 +484,16 @@ function clientOnData(m) {
 }
 function clientStart(m) {
   diff = DIFFS[m.diff] || DIFFS.normal;
-  teamSize = [1, 2, 4].includes(m.ts) ? m.ts : 1;
+  teamSize = [1, 2, 4, 8].includes(m.ts) ? m.ts : 1;
+  gmode = GM_DESC[m.gm] != null ? m.gm : 'normal';
+  weekRule = WEEK_RULES.find(w => w.id === m.wr) || null;
+  zWave = m.zw | 0; duelRound = m.dr | 0; duelScore = Array.isArray(m.dsc) ? m.dsc : [];
   unpackMap(m.map); buildGround();
   plane = { x0: m.plane.x0, y0: m.plane.y0, x1: m.plane.x1, y1: m.plane.y1, ang: m.plane.ang, dur: m.plane.dur, t: +m.pt || 0, x: m.plane.x0, y: m.plane.y0 };
   ents = m.names.map((name, i) => {
     const e = makeEnt(i === m.you, name, m.colors[i]);
-    e.id = i; e.human = m.humans.includes(i); e.team = Math.floor(i / teamSize);
+    e.id = i; e.human = m.humans.includes(i); e.team = gmode === 'duelo' ? i : Math.floor(i / teamSize);
+    if (gmode === 'zombis' && !e.human) { e.zombie = true; e.team = 50; e.alive = false; e.air = 'ground'; }
     e.av = e.human && Array.isArray(m.avs) ? cleanAv(m.avs[i]) : '';
     e.ch = Array.isArray(m.chs) && CHARS[m.chs[i]] ? m.chs[i] : 0;
     e.sk = Array.isArray(m.sks) && SKINS[m.sks[i]] ? m.sks[i] : 0;
@@ -548,6 +553,7 @@ function applySnap(s) {
   } else if (me.vh < 0 && p.veh) exitVehicle(p); // te bajaste (o el coche explotó)
   if (me.a > AIR[p.air]) { p.air = AIRS[me.a]; p.x = me.x; p.y = me.y; p.glideT = me.gt; }
   if (p.alive && !me.al) { dieFx(p); p.alive = false; }
+  else if (!p.alive && me.al && gmode === 'duelo' && state === 'play') { p.alive = true; p.x = me.x; p.y = me.y; p.air = 'ground'; }
   if (s.l) loot = s.l.map(a => ({ x: a[0], y: a[1], kind: KINDS[a[2]], gun: a[2] === 0 ? { type: GUNS[a[3]], tier: a[4], mag: 0 } : undefined }));
   nades = (s.n || []).map(a => ({ x: a[0], y: a[1], age: a[2] }));
   drops = (s.d || []).map(a => ({ x: a[0], y: a[1], t: a[2] }));
@@ -609,6 +615,8 @@ function handleEvent(ev) {
     case 'wd': if (net.role === 'client') removeShield(ev.id); break;
     case 'vx': if (net.role === 'client') { explodeFx(ev.x, ev.y); vehicles = vehicles.filter(v => v.id !== ev.id); if (player.veh && player.veh.id === ev.id) player.veh = null; } break;
     case 'pl': if (ev.place > 0) player.place = ev.place; break;
+    case 'wv': zWave = ev.n | 0; break;
+    case 'rd': duelRound = ev.n | 0; if (Array.isArray(ev.sc)) duelScore = ev.sc; break;
     case 'qc': {
       const o = ents[ev.id];
       if (o && ev.i >= 0 && ev.i < QC.length) {

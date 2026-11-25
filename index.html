@@ -219,7 +219,15 @@
         <option value="normal" selected>Normal (25 bots)</option>
         <option value="dificil">Difícil (30 bots)</option>
       </select>
-      <label for="mode">Modo:</label>
+      <label for="gm">Juego:</label>
+      <select id="gm">
+        <option value="normal">🎯 Battle royale</option>
+        <option value="rapida">⚡ Partida rápida</option>
+        <option value="semana">🗓️ Modo de la semana</option>
+        <option value="zombis">🧟 Zombis</option>
+        <option value="duelo">⚔️ Duelo (al mejor de 5)</option>
+      </select>
+      <label for="mode">Equipos:</label>
       <select id="mode">
         <option value="1">Individual</option>
         <option value="2">Dúos</option>
@@ -244,6 +252,7 @@
       <button class="sec skin-btn" id="skinBtn" type="button"><canvas width="60" height="60"></canvas><span>Skin</span></button>
     </div>
     <p class="char-desc" id="charDesc"></p>
+    <p class="char-desc" id="gmDesc"></p>
     <div class="menu-btns">
       <button class="sec" id="setBtn" type="button">⚙️ Ajustes</button>
       <button class="sec" id="misBtn" type="button">📋 Misiones</button>
@@ -291,7 +300,15 @@
     <div class="code" id="lobbyCode">····</div>
     <p id="lobbyHint"></p>
     <div class="row" style="margin:0 0 12px">
-      <label for="lobbyMode">Modo:</label>
+      <label for="lobbyGm">Juego:</label>
+      <select id="lobbyGm">
+        <option value="normal">🎯 Battle royale</option>
+        <option value="rapida">⚡ Partida rápida</option>
+        <option value="semana">🗓️ Modo de la semana</option>
+        <option value="zombis">🧟 Zombis</option>
+        <option value="duelo">⚔️ Duelo (al mejor de 5)</option>
+      </select>
+      <label for="lobbyMode">Equipos:</label>
       <select id="lobbyMode">
         <option value="1">Individual</option>
         <option value="2">Dúos</option>

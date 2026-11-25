@@ -128,7 +128,9 @@ function drawHUD() {
   const zw = touchMode ? 190 : 300;
   rr(VW / 2 - zw / 2, 12, zw, 30, 15); ctx.fillStyle = zone.state === 'shrink' ? 'rgba(120,30,170,.8)' : 'rgba(10,12,28,.7)'; ctx.fill();
   txt(zt, VW / 2, 27, touchMode ? 13 : 14, '#fff', 'center');
-  txt(`Fase ${Math.min(zone.phase + 1, PHASES.length)} de ${PHASES.length}`, VW / 2, 54, 12, '#c8c8e8', 'center');
+  if (gmode === 'zombis') txt(`🧟 Oleada ${Math.max(1, zWave)} de ${ZW_MAX} · quedan ${ents.filter(e => e.zombie && e.alive).length}`, VW / 2, 54, 13, '#b5f08a', 'center', 800);
+  else if (gmode === 'duelo') txt(`⚔️ Ronda ${Math.max(1, duelRound)} · ` + (duelScore.length ? duelScore.map(([id, n]) => `${ents[id] ? (ents[id] === player ? 'Tú' : ents[id].name) : '?'} ${n}`).join(' – ') : 'a 3 victorias'), VW / 2, 54, 13, '#ffd34d', 'center', 800);
+  else txt(`Fase ${Math.min(zone.phase + 1, PH().length)} de ${PH().length}${gmode === 'rapida' ? ' · ⚡ rápida' : gmode === 'semana' && weekRule ? ' · ' + weekRule.name : ''}`, VW / 2, 54, 12, '#c8c8e8', 'center');
 
   // compañeros de equipo: nombre, foto y vida
   let matesH = 0;
@@ -447,6 +449,7 @@ function resetRound() {
   shields = []; boxes = []; boxUiSig = ''; $('boxUI').classList.add('hidden');
 }
 function setupWorld() {
+  gmode = 'normal';
   genMap($('map').value); rects.forEach((q, i) => { q.id = i; }); buildGround(); initPlane(); spawnEnts([{ name: 'Tú' }]); initZone();
   resetRound(); spawnVehicles();
 }
@@ -461,9 +464,11 @@ function enterPlay() {
 function startGame(humans) {
   tut = null;
   diff = DIFFS[$('diff').value] || DIFFS.normal;
-  teamSize = [1, 2, 4].includes(+$('mode').value) ? +$('mode').value : 1;
+  gmode = GM_DESC[$('gm').value] != null ? $('gm').value : 'normal';
+  teamSize = gmode === 'zombis' ? 8 : gmode === 'duelo' ? 1 : [1, 2, 4].includes(+$('mode').value) ? +$('mode').value : 1;
   genMap($('map').value); rects.forEach((q, i) => { q.id = i; }); buildGround(); initPlane(); spawnEnts(humans); initZone();
   resetRound(); spawnVehicles();
+  applyModeStart();
   enterPlay();
 }
 function newGame() { startGame([{ name: 'Tú', av: myAv, ch: myCh, sk: mySk }]); if (!tutDone()) tutStart(); }

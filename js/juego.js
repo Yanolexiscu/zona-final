@@ -3,11 +3,11 @@
 // (los archivos comparten variables globales y se cargan en orden desde index.html)
 /* ---------- Zona ---------- */
 function initZone() {
-  zone = { x: WORLD / 2, y: WORLD / 2, r: 2400, sx: 0, sy: 0, sr: 0, tx: 0, ty: 0, tr: 0, phase: 0, state: 'wait', timer: PHASES[0].wait, dps: 1 };
+  zone = { x: WORLD / 2, y: WORLD / 2, r: 2400, sx: 0, sy: 0, sr: 0, tx: 0, ty: 0, tr: 0, phase: 0, state: 'wait', timer: PH()[0].wait, dps: 1 };
   nextZoneTarget();
 }
 function nextZoneTarget() {
-  const P = PHASES[zone.phase];
+  const P = PH()[zone.phase];
   const a = Math.random() * Math.PI * 2, d = Math.random() * Math.max(0, zone.r - P.r) * 0.8;
   zone.tx = clamp(zone.x + Math.cos(a) * d, 300, WORLD - 300);
   zone.ty = clamp(zone.y + Math.sin(a) * d, 300, WORLD - 300);
@@ -15,7 +15,7 @@ function nextZoneTarget() {
 }
 function updateZone(dt) {
   if (zone.state === 'done') return;
-  const P = PHASES[zone.phase];
+  const P = PH()[zone.phase];
   zone.timer -= dt;
   if (zone.state === 'wait') {
     if (zone.timer <= 0) {
@@ -28,10 +28,138 @@ function updateZone(dt) {
     zone.x = lerp(zone.sx, zone.tx, k); zone.y = lerp(zone.sy, zone.ty, k); zone.r = lerp(zone.sr, zone.tr, k);
     if (zone.timer <= 0) {
       zone.phase++;
-      if (zone.phase < PHASES.length) { zone.state = 'wait'; zone.timer = PHASES[zone.phase].wait; nextZoneTarget(); }
+      if (zone.phase < PH().length) { zone.state = 'wait'; zone.timer = PH()[zone.phase].wait; nextZoneTarget(); }
       else zone.state = 'done';
     }
   }
+}
+
+
+/* ---------- Modos: preparación (anfitrión o solo) ---------- */
+function applyModeStart() {
+  zWave = 0; duelRound = 0; duelScore = []; modeT = 0;
+  weekRule = gmode === 'semana' ? currentWeekRule() : null;
+  if (weekRule) {
+    if (weekRule.guns) for (const it of loot) if (it.kind === 'gun') { it.gun = makeGun(pick(weekRule.guns), Math.max(it.gun.tier, 1)); }
+    if (weekRule.nades) for (const it of loot) if (it.kind === 'med' && Math.random() < 0.4) it.kind = 'nade';
+    for (const e of ents) { e.guns[0] = makeGun(weekRule.start, weekRule.start === 'pistola' ? 0 : 1); if (weekRule.nades) e.nades = weekRule.nades; }
+    announceAll(`🗓️ Modo de la semana: ${weekRule.name}`, '#ffd34d');
+  }
+  if (gmode === 'zombis') {
+    for (const e of ents) e.team = 0; // todos los humanos juntos
+    for (let i = 0; i < ZPOOL; i++) {
+      const z = makeEnt(false, 'Zombi', '#7cb85a');
+      z.id = ents.length; z.zombie = true; z.team = 50; z.sk = 6; z.alive = false; z.air = 'ground'; z.meds = 0; z.walls = 0; z.nades = 0;
+      z.x = z.y = -500; ents.push(z);
+    }
+    zone.state = 'done'; zone.r = 6000; zone.tr = 6000; zone.x = zone.tx = WORLD / 2; zone.y = zone.ty = WORLD / 2;
+    modeT = 22; // la primera oleada llega cuando ya habéis aterrizado
+  }
+  if (gmode === 'duelo') {
+    for (const e of ents) e.team = e.id;
+    duelScore = ents.map(e => [e.id, 0]);
+    modeT = -1; duelNextRound(true);
+  }
+}
+let modeT = 0;
+// Temporizadores de los modos (solo el anfitrión o en solitario)
+function updateMode(dt) {
+  if (gmode === 'zombis') {
+    if (modeT > 0) { modeT -= dt; if (modeT <= 0) zombieWave(); }
+    for (const e of ents) if (e.zombie && e.alive && e.air === 'ground' && !e.dropZ) e.dropZ = 1;
+  } else if (gmode === 'duelo' && modeT > 0) { modeT -= dt; if (modeT <= 0) duelNextRound(false); }
+}
+// ---- Zombis ----
+function zombieWave() {
+  zWave++;
+  const humans = ents.filter(e => e.human && e.alive);
+  if (!humans.length) return;
+  const n = Math.min(ZPOOL, 4 + zWave * 4);
+  let k = 0;
+  for (const z of ents) {
+    if (!z.zombie || z.alive || k >= n) continue;
+    const h = pick(humans);
+    let x = 0, y = 0;
+    for (let t = 0; t < 30; t++) { const a = Math.random() * Math.PI * 2, d = rand(650, 1000); x = h.x + Math.cos(a) * d; y = h.y + Math.sin(a) * d; if (outdoorFree(x, y, 20)) break; }
+    Object.assign(z, { alive: true, hp: 50 + zWave * 12, armor: 0, down: false, x: clamp(x, 60, WORLD - 60), y: clamp(y, 60, WORLD - 60), cd: 0, place: 0, killer: null, target: null, lx: null });
+    k++;
+  }
+  announceAll(`🧟 ¡Oleada ${zWave} de ${ZW_MAX}! (${k} zombis)`, '#b5f08a', 'alarm');
+  bcast({ k: 'wv', n: zWave });
+}
+function zombieAfterKill() {
+  const humansAlive = ents.some(e => e.human && e.alive);
+  if (!humansAlive) { pushFeed(`🧟 Los zombis ganaron en la oleada ${zWave}`, 8, true); finishMatch(50); return; }
+  if (ents.some(e => e.zombie && e.alive) || modeT > 0) return;
+  if (zWave >= ZW_MAX) { announceAll('🏆 ¡Sobrevivisteis a todas las oleadas!', '#5dffb1'); finishMatch(0); return; }
+  announceAll(`✅ Oleada ${zWave} superada · la siguiente en 8 s`, '#5dffb1');
+  for (const e of ents) if (e.human && e.alive) { e.meds = Math.min(5, e.meds + 1); e.armor = Math.min(100, e.armor + 25); }
+  modeT = 8;
+}
+function zombieUpdate(e, dt) {
+  let best = null, bd = Infinity;
+  for (const o of ents) {
+    if (!o.human || !o.alive || o.air !== 'ground') continue;
+    const d = dist(e.x, e.y, o.x, o.y) + (o.down ? 300 : 0);
+    if (d < bd) { bd = d; best = o; }
+  }
+  if (!best) return;
+  const s = steer(e, best.x, best.y), dx = s.x - e.x, dy = s.y - e.y, l = Math.hypot(dx, dy) || 1;
+  e.ang = Math.atan2(best.y - e.y, best.x - e.x);
+  e.cd -= dt;
+  if (dist(e.x, e.y, best.x, best.y) < e.r + best.r + 8) {
+    if (e.cd <= 0) { e.cd = 0.7; damage(best, 12 + zWave * 2, e, 'Mordisco'); e.lastShot = time; }
+  } else moveEnt(e, dx / l * SPEED * charSpeed(e), dy / l * SPEED * charSpeed(e), dt);
+}
+// ---- Duelo ----
+function duelSpawns() {
+  const c = { x: zone.x, y: zone.y }, list = ents.filter(e => e.human || !e.zombie), n = list.length;
+  return list.map((e, i) => { const a = i / n * Math.PI * 2 + 0.4; return [e, c.x + Math.cos(a) * 380, c.y + Math.sin(a) * 380]; });
+}
+function duelNextRound(first) {
+  duelRound++;
+  // zona pequeña alrededor de una zona abierta del mapa
+  if (first) {
+    let cx = WORLD / 2, cy = WORLD / 2;
+    for (let t = 0; t < 60; t++) { const x = rand(700, WORLD - 700), y = rand(700, WORLD - 700); if (!insideBuilding(x, y, 300) && !pondNear(x, y, 300)) { cx = x; cy = y; break; } }
+    zone.cx0 = cx; zone.cy0 = cy;
+  }
+  Object.assign(zone, { x: zone.cx0, y: zone.cy0, r: 700, phase: 0, state: 'wait', timer: PH()[0].wait });
+  nextZoneTarget();
+  const gun = pick(['rifle', 'escopeta', 'subfusil', 'revolver', 'tirador']);
+  bullets = []; nades = []; boxes = [];
+  for (const [e, x, y] of duelSpawns()) {
+    let px = x, py = y;
+    for (let t = 0; t < 20 && !outdoorFree(px, py, 20); t++) { px = x + rand(-120, 120); py = y + rand(-120, 120); }
+    Object.assign(e, { alive: true, hp: 100, armor: 0, down: false, rev: 0, x: px, y: py, air: 'ground', glideT: 0,
+      guns: [makeGun(gun, 1), makeGun('pistola', 1)], slot: 0, meds: 2, nades: 1, walls: 1, reloadT: 0, healT: 0, place: 0, killer: null, target: null, veh: null, lx: null });
+    e.ang = Math.atan2(zone.y - py, zone.x - px);
+  }
+  if (!first) announceAll(`⚔️ Ronda ${duelRound} · ${WEAPONS[gun].name}`, '#ffd34d');
+  bcast({ k: 'rd', n: duelRound, sc: duelScore });
+}
+function duelAfterKill() {
+  const alive = ents.filter(e => e.alive);
+  if (aliveTeams() > 1 || modeT > 0) return;
+  const w = alive[0];
+  if (w) { const s = duelScore.find(q => q[0] === w.id); if (s) s[1]++; }
+  bcast({ k: 'rd', n: duelRound, sc: duelScore });
+  const best = duelScore.reduce((a, b) => b[1] > a[1] ? b : a, [0, -1]);
+  if (best[1] >= 3) { // fin del duelo
+    const W = ents[best[0]];
+    announceAll(`🏆 ${W.isPlayer ? '¡Ganaste' : W.name + ' gana'} el duelo!`, '#ffd34d');
+    for (const h of ents) {
+      if (!h.human || h === W) continue;
+      h.place = 2;
+      if (h.alive) { h.alive = false; h.hp = 0; }
+      if (h === player) endGame(false); else toHuman(h, { k: 'dead', place: 2, killer: W.id });
+    }
+    W.place = 1;
+    finishMatch(W.team);
+    return;
+  }
+  announceAll(w ? `${w.isPlayer ? '¡Ganaste' : w.name + ' gana'} la ronda ${duelRound}!` : 'Ronda empatada', '#ffd34d');
+  modeT = 3;
 }
 
 /* ---------- Avisos ---------- */
@@ -660,7 +788,7 @@ function kill(e, src, weapon) {
     if (src.streak >= 2) toHuman(src, { k: 'a', text: src.streak === 2 ? '¡Doble baja!' : src.streak === 3 ? '¡Triple baja!' : '¡Imparable!', c: '#ff7b7b' });
   }
   if (src && !src.human && src !== e && Math.random() < 0.12) setEmo(src, 1); // a veces los bots se ríen
-  if (e.human) {
+  if (e.human && gmode !== 'duelo') { // en duelo, morir solo pierde la ronda
     if (e === player) endGame(false);
     else toHuman(e, { k: 'dead', place: e.place, killer: src ? src.id : -1 });
   }
@@ -669,10 +797,12 @@ function kill(e, src, weapon) {
     const downed = ents.filter(o => o.alive && o.down && o.team === e.team);
     if (downed.length) { for (const m of downed) kill(m, m.knocker); return; }
   }
+  if (gmode === 'zombis') { zombieAfterKill(); return; }
+  if (gmode === 'duelo') { duelAfterKill(); return; }
   if (teamsNow <= 1) {
     const w = ents.find(o => o.alive);
     finishMatch(w ? w.team : null);
-  } else if (ents.some(o => o.alive && o.human)) {
+  } else if (ents.some(o => o.alive && o.human) && (gmode === 'normal' || gmode === 'rapida' || gmode === 'semana')) {
     if (!teamsOn() && [10, 5, 3, 2].includes(aliveNow) && !(src && src.human && src.streak >= 2)) announceAll(`Quedan ${aliveNow} jugadores`);
     else if (teamsOn() && !teamLeft && [5, 3, 2].includes(teamsNow)) announceAll(`Quedan ${teamsNow} equipos`);
   }
@@ -989,6 +1119,7 @@ function coverFrom(e, t) {
   return best;
 }
 function updateBot(e, dt) {
+  if (e.zombie) { zombieUpdate(e, dt); return; }
   if (e.target && !e.target.alive) e.target = null;
   if (e.down) { // derribado: se arrastra hacia el compañero en pie más cercano
     let m = null, md = Infinity;
@@ -1178,6 +1309,7 @@ function updateBullets(dt) {
   }
 }
 function update(dt) {
+  updateMode(dt);
   time += dt;
   plane.t += dt;
   plane.x = lerp(plane.x0, plane.x1, plane.t / plane.dur); plane.y = lerp(plane.y0, plane.y1, plane.t / plane.dur);

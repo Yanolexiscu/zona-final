@@ -167,7 +167,7 @@ let mySk = 0, newSkins = [], roundCoins = 0;
 try { const k = +localStorage.getItem('zf-skin'); if (k >= 0 && k < SKINS.length) mySk = k | 0; } catch (e) {}
 const healDur = e => HEAL_TIME * (chIs(e, 'doc') ? 0.5 : 1);
 const wallCap = e => chIs(e, 'ingeniera') ? 5 : 3;
-const charSpeed = e => chIs(e, 'rayo') ? 1.12 : 1;
+const charSpeed = e => (chIs(e, 'rayo') ? 1.12 : 1) * (gmode === 'semana' && weekRule && weekRule.id === 'velocidad' ? 1.35 : 1) * (e.zombie ? 0.92 + zWave * 0.05 : 1);
 let myCh = 0;
 try { const c = +localStorage.getItem('zf-char'); if (c >= 0 && c < CHARS.length) myCh = c | 0; } catch (e) {}
 // Paredes desplegables, derribos, vehículos y marcas
@@ -191,6 +191,35 @@ const PHASES = [
   { wait: 15, shrink: 20, r: 0,    dps: 20 },
 ];
 
+/* ---------- Modos de juego ---------- */
+let gmode = 'normal', weekRule = null, zWave = 0, duelRound = 0, duelScore = [];
+const GM_DESC = {
+  normal: 'El clásico: el último en pie gana.',
+  rapida: 'Unos 5 minutos: menos bots y la zona se cierra mucho más rápido.',
+  semana: '',
+  zombis: 'Sobrevive con tus amigos a 5 oleadas de zombis. Sin zona: solo ellos.',
+  duelo: 'Rondas cara a cara (contra un bot si juegas solo). Gana quien llegue a 3.',
+};
+// Una regla distinta cada semana (igual para todos)
+const WEEK_RULES = [
+  { id: 'escopetas', name: '💥 Solo escopetas', start: 'escopeta', guns: ['escopeta'] },
+  { id: 'francos', name: '🎯 Solo francotiradores', start: 'tirador', guns: ['francotirador', 'tirador'] },
+  { id: 'cohetes', name: '🚀 Lluvia de cohetes', start: 'pistola', guns: ['lanzacohetes', 'lanzacohetes', 'rifle'] },
+  { id: 'velocidad', name: '⚡ Supervelocidad', start: 'subfusil', guns: null },
+  { id: 'granadas', name: '💣 Fiesta de granadas', start: 'pistola', guns: null, nades: 4 },
+];
+function currentWeekRule() {
+  const d = new Date(), t = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  return WEEK_RULES[Math.floor((t / 86400000 + 3) / 7) % WEEK_RULES.length];
+}
+GM_DESC.semana = `Esta semana: ${currentWeekRule().name}. Cambia cada lunes.`;
+const GM_PHASES = {
+  rapida: PHASES.map(P => ({ ...P, wait: Math.round(P.wait * 0.4), shrink: Math.round(P.shrink * 0.6) })),
+  duelo: [{ wait: 20, shrink: 25, r: 260, dps: 8 }, { wait: 8, shrink: 20, r: 0, dps: 16 }],
+};
+const PH = () => GM_PHASES[gmode] || PHASES;
+const ZW_MAX = 5, ZPOOL = 20; // oleadas de zombis y zombis a la vez como máximo
+
 /* ---------- Estado ---------- */
 let circles, rects, buildings, bushes, ponds, roads, loot, ents, bullets, particles, feed, zone, player;
 let nades = [], blasts = [], drops = [], floats = [], indicators = [], shake = 0;
@@ -206,7 +235,7 @@ const teamsOn = () => teamSize > 1;
 const EMOS = ['👋', '😂', '🔥', '🆘'];
 // Chat rápido: frases cortas que ven tus compañeros (o todos, en individual)
 const QC = ['¡Vamos!', 'Necesito botiquín', '¡Enemigo aquí!', 'Cúbreme', '¡Buen tiro!', 'Sígueme', 'Espera', '¡Gracias!'];
-const GAME_VER = 'zf-v21';
+const GAME_VER = 'zf-v22';
 // Ajustes de accesibilidad y diagnóstico (se guardan en el teléfono)
 let cbMode = false, bigTxt = false, showFps = false, musVol = 0.45;
 try {
@@ -624,7 +653,8 @@ function shuffle(a) {
 // humans[0] es el jugador local; el resto son amigos conectados. Los huecos se rellenan con bots.
 function spawnEnts(humans = [{ name: 'Tú' }]) {
   ents = [];
-  const n = Math.max(diff.bots + 1, humans.length), names = shuffle([...NAMES]);
+  const bots = gmode === 'rapida' ? 11 : gmode === 'zombis' ? 0 : gmode === 'duelo' ? (humans.length > 1 ? 0 : 1) : diff.bots;
+  const n = Math.max(bots + 1, humans.length), names = shuffle([...NAMES]);
   for (let i = 0; i < n; i++) {
     const h = humans[i];
     const e = h

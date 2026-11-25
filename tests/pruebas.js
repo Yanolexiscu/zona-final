@@ -112,6 +112,16 @@ async function main() {
     await sleep(800);
     expect(!A.errs.length, A.errs.join(' | '));
   });
+  await check('Modos: zombis, duelo, semana y rápida', async () => {
+    const z = await A.ev(`setGm('zombis'); newGame(); for (const e of ents) if (e.human) { e.air = 'ground'; e.glideT = 0; } for (let i = 0; i < 480; i++) update(0.05); for (const q of ents) if (q.zombie && q.alive) kill(q, player, 'x'); for (let i = 0; i < 200; i++) update(0.05); zWave`);
+    expect(z === 2, 'los zombis no pasaron a la oleada 2 (' + z + ')');
+    const d = await A.ev(`setGm('duelo'); newGame(); for (let r = 0; r < 3; r++) { kill(ents[1], player, 'x'); for (let i = 0; i < 80; i++) update(0.05); } state`);
+    expect(d === 'over', 'el duelo no terminó al llegar a 3');
+    expect(await A.ev(`setGm('semana'); newGame(); !!weekRule`), 'no hay regla de la semana');
+    expect(await A.ev(`setGm('rapida'); newGame(); ents.length === 12`), 'la partida rápida no tiene 12 jugadores');
+    await A.ev(`setGm('normal'); toMenu(); 'ok'`);
+    expect(!A.errs.length, A.errs.join(' | '));
+  });
   await check('Menús: ajustes, misiones, perfil y tienda', async () => {
     await A.ev(`toMenu(); $('setBtn').click(); $('setOk').click(); $('misBtn').click(); $('misOk').click(); $('profBtn').click(); $('profOk').click(); $('skinBtn').click(); 'ok'`);
     await sleep(800);

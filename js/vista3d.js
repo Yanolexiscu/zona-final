@@ -610,6 +610,7 @@ function armsFor(md, S, W, tier, pose) {
   const b = geoB(), G = G3(), sl = S.sleeve || S.shirt, hand = S.glove || S.skin;
   let h1, h2;
   if (pose === 'glide') { h1 = [3, 50, 9]; h2 = [3, 50, -9]; }
+  else if (pose === 'zombie') { h1 = [20, 33, 6]; h2 = [20, 34, -6]; }
   else if (pose === 'down' || !W) { h1 = [2, 18, 11]; h2 = [2, 18, -11]; }
   else {
     const L = W.len + 6, y = 29;
@@ -644,6 +645,9 @@ function syncEnt(e, f, dt) {
   const now = performance.now() / 1000;
   // al morir: cae al suelo y se desvanece (solo si lo estabas viendo)
   if (md && !e.alive && md.dieT == null && md.root.visible && md.used === r3.frame - 1 && e.air === 'ground') { md.dieT = now; md.dieFrom = md.body.rotation.z; }
+  if (md && md.dieT != null && e.alive && (now - md.dieT) > 0.2) { // volvió (ronda nueva del duelo, oleada de zombis)
+    md.dieT = null; md.mat.opacity = md.S.alpha || 1; md.mat.transparent = !!md.S.alpha;
+  }
   if (md && md.dieT != null) {
     const k = (now - md.dieT) / 1.2;
     if (k >= 1 || e.alive) { md.root.visible = false; return; }
@@ -688,7 +692,7 @@ function syncEnt(e, f, dt) {
     else {
       const kick = Math.max(0, 0.08 - (time - e.lastShot));
       body.rotation.set(0, 0, kick * 1.3); body.position.set(0, inWater(e.x, e.y) ? -6 : 0, 0);
-      armsFor(md, S, W, g ? g.tier : 0, 'stand');
+      if (e.zombie) armsFor(md, S, null, 0, 'zombie'); else armsFor(md, S, W, g ? g.tier : 0, 'stand');
       const sw = Math.sin(e.stepP || 0) * 0.65 * (e.walkA || 0);
       legs[0].rotation.z = sw; legs[1].rotation.z = -sw;
       // retroceso (cañón arriba), recarga (arma abajo moviéndose) y curación (brazos bajos + aro verde)
