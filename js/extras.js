@@ -137,6 +137,51 @@ function drawReplayBanner() {
   txt(touchMode ? 'Toca para saltar' : 'Pulsa cualquier tecla o haz clic para saltar', VW / 2, VH - 20, 13, '#c8cde8', 'center', 700);
 }
 
+/* ---------- Música (sintetizada, sin archivos) ---------- */
+// Menú: tranquila. En partida: ritmo; cuando la zona se cierra o quedan pocos: más intensa.
+let mus = null;
+function musicLevel() { if (mus) mus.out.gain.setTargetAtTime(musVol * 0.22, actx.currentTime, 0.2); }
+function musicTick() {
+  if (!actx || actx.state !== 'running') return;
+  if (!mus) {
+    const out = actx.createGain(); out.gain.value = 0; out.connect(master || actx.destination);
+    mus = { out, next: actx.currentTime + 0.1, step: 0 };
+    musicLevel();
+  }
+  if (musVol <= 0.001 || document.hidden) return;
+  const live = state === 'play' && player && player.alive;
+  const hot = live && (zone.state === 'shrink' || ents.filter(e => e.alive).length <= 5);
+  const bpm = !live ? 84 : hot ? 132 : 108, sp = 60 / bpm / 2;
+  // progresión Lam - Fa - Do - Sol (en Hz: raíces graves)
+  const roots = [110, 87.31, 130.81, 98], arp = [[0, 3, 7, 12], [0, 4, 7, 12], [0, 4, 7, 12], [0, 4, 7, 11]];
+  while (mus.next < actx.currentTime + 0.25) {
+    const t = mus.next, st = mus.step, bar = Math.floor(st / 8) % 4, r = roots[bar];
+    const note = (f, dur, type, vol, dest = mus.out) => {
+      const o = actx.createOscillator(), gn = actx.createGain();
+      o.type = type; o.frequency.value = f;
+      gn.gain.setValueAtTime(0.0001, t); gn.gain.exponentialRampToValueAtTime(vol, t + 0.012); gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(gn); gn.connect(dest); o.start(t); o.stop(t + dur + 0.02);
+    };
+    if (st % 4 === 0) note(r, sp * 3.6, 'triangle', 0.55);                     // bajo
+    if (live || st % 2 === 0) note(r * 2 * Math.pow(2, arp[bar][st % 4] / 12), sp * 0.9, 'square', live ? 0.07 : 0.05); // arpegio
+    if (!live && st % 8 === 0) note(r * 4, sp * 7, 'sine', 0.08);              // pad del menú
+    if (live && st % 4 === 0) { // bombo
+      const o = actx.createOscillator(), gn = actx.createGain();
+      o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.12);
+      gn.gain.setValueAtTime(0.7, t); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+      o.connect(gn); gn.connect(mus.out); o.start(t); o.stop(t + 0.2);
+    }
+    if (hot && st % 2 === 1 && noiseBuf) { // charles cuando hay tensión
+      const sN = actx.createBufferSource(), f = actx.createBiquadFilter(), gn = actx.createGain();
+      sN.buffer = noiseBuf; f.type = 'highpass'; f.frequency.value = 7000;
+      gn.gain.setValueAtTime(0.12, t); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+      sN.connect(f); f.connect(gn); gn.connect(mus.out); sN.start(t); sN.stop(t + 0.06);
+    }
+    mus.next += sp; mus.step++;
+  }
+}
+setInterval(() => { try { musicTick(); } catch (e) {} }, 100);
+
 /* ---------- Tutorial (primera partida en solitario) ---------- */
 let tut = null;
 const tutDone = () => { try { return localStorage.getItem('zf-tut') === '1'; } catch (e) { return true; } };

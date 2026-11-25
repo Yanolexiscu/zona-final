@@ -7,6 +7,7 @@ function rr(x, y, w, h, r) {
   if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h);
 }
 function txt(s, x, y, size = 15, color = '#eef0ff', align = 'left', weight = 600) {
+  if (bigTxt) size = Math.round(size * 1.2);
   ctx.font = `${weight} ${size}px system-ui, "Segoe UI", sans-serif`;
   ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = 'middle';
   ctx.shadowColor = 'rgba(0,0,0,.7)'; ctx.shadowBlur = 4;
@@ -341,12 +342,12 @@ function drawDowned(e) {
   ctx.restore();
   if (e.rev > 0) {
     ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 6, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, e.rev));
-    ctx.strokeStyle = '#5dffb1'; ctx.lineWidth = 4; ctx.stroke();
+    ctx.strokeStyle = C_MATE(); ctx.lineWidth = 4; ctx.stroke();
   }
   ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(e.x - 18, e.y - e.r - 14, 36, 5);
   ctx.fillStyle = '#fc8181'; ctx.fillRect(e.x - 18, e.y - e.r - 14, 36 * Math.max(0, e.hp) / 100, 5);
   const mine = player && e.team === player.team;
-  txt(`🩸 ${e.isPlayer ? 'Tú' : e.name}`, e.x, e.y - e.r - 26, 12, mine ? '#5dffb1' : '#ff8fa3', 'center', 800);
+  txt(`🩸 ${e.isPlayer ? 'Tú' : e.name}`, e.x, e.y - e.r - 26, 12, mine ? C_MATE() : C_FOE(), 'center', 800);
 }
 function drawEnt(e) {
   if (e.down) { drawDowned(e); return; }
@@ -368,7 +369,7 @@ function drawEnt(e) {
   }
   if (e.healT > 0) {
     ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 9, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0, 1 - e.healT / healDur(e)));
-    ctx.strokeStyle = '#68d391'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.strokeStyle = C_GOOD(); ctx.lineWidth = 3; ctx.stroke();
   }
   const mate = teamsOn() && !e.isPlayer && player && e.team === player.team;
   if (mate) { // compañero de equipo: aro verde
@@ -377,10 +378,10 @@ function drawEnt(e) {
   }
   if (!e.isPlayer && (time - e.lastHurt < 3 || mate)) {
     ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(e.x - 18, e.y - e.r - 14, 36, 5);
-    ctx.fillStyle = e.hp > 50 ? '#68d391' : e.hp > 25 ? '#f6ad55' : '#fc8181';
+    ctx.fillStyle = e.hp > 50 ? C_GOOD() : e.hp > 25 ? '#f6ad55' : '#fc8181';
     ctx.fillRect(e.x - 18, e.y - e.r - 14, 36 * Math.max(0, e.hp) / 100, 5);
   }
-  if (mate) txt(e.name, e.x, e.y - e.r - 24, 12, '#5dffb1', 'center', 800);
+  if (mate) txt(e.name, e.x, e.y - e.r - 24, 12, C_MATE(), 'center', 800);
   else if (e.human && !e.isPlayer) txt(e.name, e.x, e.y - e.r - 24, 12, e.color, 'center', 800);
 }
 function drawGlider(e) {
@@ -399,7 +400,7 @@ function drawGlider(e) {
   drawPerson(ctx, e.sk, 0, 0, -Math.PI / 2, { pose: 'glide', av: e.av, ring: ringOf(e) });
   ctx.restore();
   if (e.isPlayer) txt('Tú', e.x, e.y - h - 80 * s, 14, '#ffd34d', 'center', 800);
-  else if (teamsOn() && player && e.team === player.team) txt('🤝 ' + e.name, e.x, e.y - h - 80 * s, 13, '#5dffb1', 'center', 800);
+  else if (teamsOn() && player && e.team === player.team) txt('🤝 ' + e.name, e.x, e.y - h - 80 * s, 13, C_MATE(), 'center', 800);
   else if (e.human) txt(e.name, e.x, e.y - h - 80 * s, 13, e.color, 'center', 800);
 }
 // Cactus (mapa desierto): vista desde arriba, con costillas, espinas y brazos
@@ -509,7 +510,7 @@ function renderNow(dt) {
     drawVehicle(v);
     const d = v.driver;
     if (d && d !== player && (d.human || (teamsOn() && d.team === player.team)))
-      txt(d.name, v.x, v.y - 46, 12, d.team === player.team && teamsOn() ? '#5dffb1' : d.color, 'center', 800);
+      txt(d.name, v.x, v.y - 46, 12, d.team === player.team && teamsOn() ? C_MATE() : d.color, 'center', 800);
   }
   for (const e of ents) if (e.seen && !e.veh && vis(e.x, e.y, 60)) drawEnt(e);
 

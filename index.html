@@ -40,6 +40,8 @@
   .prof div { background: #1b1f3b; border: 1px solid var(--line); border-radius: 10px; padding: 9px 8px; }
   .prof b { display: block; font-size: 1.25rem; color: var(--text); }
   .prof span { font-size: .75rem; color: var(--muted); }
+  body.bigtxt { font-size: 112%; }
+  body.bigtxt .srow, body.bigtxt p, body.bigtxt button { font-size: 1.08em; }
   .menu-btns { display: flex; gap: 8px; justify-content: center; margin: -4px 0 14px; flex-wrap: wrap; }
   .menu-btns button { padding: 8px 12px; font-size: .9rem; }
   .v3d { display: flex; margin: -6px auto 14px; color: var(--muted); font-size: .9rem; gap: 6px; align-items: center; justify-content: center; }
@@ -188,6 +190,7 @@
       <kbd>🧱 🚗</kbd><span>Poner pared · subir o bajar del coche</span>
       <kbd>Mapa grande</kbd><span>Toca un punto para marcarlo 📍</span>
       <kbd>🧭</kbd><span>Girar la cámara (vista 3D)</span>
+      <kbd>💬</kbd><span>Chat rápido con frases</span>
     </div>
     <div class="controls desk-only">
       <kbd>Espacio</kbd><span>Saltar del avión</span>
@@ -199,6 +202,8 @@
       <kbd>V</kbd><span>Subir o bajar del coche 🚗</span>
       <kbd>Z · clic en mapa</kbd><span>Marcar un punto 📍</span>
       <kbd>C</kbd><span>Girar la cámara (vista 3D) 🧭</span>
+      <kbd>T</kbd><span>Chat rápido 💬 (luego 1-8)</span>
+      <kbd>🎮</kbd><span>También puedes jugar con mando</span>
       <kbd>R</kbd><span>Recargar</span>
       <kbd>1 / 2 · rueda</kbd><span>Cambiar de arma</span>
       <kbd>Q</kbd><span>Usar botiquín</span>
@@ -356,10 +361,17 @@
     <label class="srow"><span>✨ Calidad 3D</span><select id="q3d"><option value="auto">Auto (se ajusta sola)</option><option value="baja">Baja</option><option value="media">Media</option><option value="alta">Alta</option></select></label>
     <label class="srow"><span>🧍 Tamaño de los jugadores</span><input type="range" id="psz" min="1.2" max="2.3" step="0.1"></label>
     <label class="srow"><span>🔊 Volumen</span><input type="range" id="vol" min="0" max="1" step="0.05"></label>
+    <label class="srow"><span>🎵 Música</span><input type="range" id="mus" min="0" max="1" step="0.05"></label>
     <label class="srow vib touch-only" id="vibRow"><span>📳 Vibración</span><input type="checkbox" id="vib" checked></label>
     <label class="srow"><span>🎯 Ayuda para apuntar (táctil)</span><input type="checkbox" id="aimA" checked></label>
     <label class="srow"><span>🔋 Ahorro de batería (30 FPS)</span><input type="checkbox" id="fps30"></label>
     <label class="srow"><span>🌦️ Clima (lluvia, nieve, niebla…)</span><input type="checkbox" id="wxOn" checked></label>
+    <label class="srow"><span>🎨 Modo daltónico (azul / naranja)</span><input type="checkbox" id="cbm"></label>
+    <label class="srow"><span>🔠 Texto más grande</span><input type="checkbox" id="bigT"></label>
+    <label class="srow"><span>📈 Mostrar FPS</span><input type="checkbox" id="fpsV"></label>
+    <button class="sec" id="repBtn" type="button">🐞 Reportar problema (copiar informe)</button>
+    <p class="stats" id="repMsg" style="margin:6px 0 0"></p>
+    <textarea id="repTxt" hidden readonly style="width:100%;height:110px;font-size:.7rem;background:#1b1f3b;color:var(--text);border:1px solid var(--line);border-radius:8px"></textarea>
     <button class="sec" id="tutAgain" type="button">🎓 Ver el tutorial otra vez</button>
     <button id="setOk" type="button">Listo</button>
   </div>

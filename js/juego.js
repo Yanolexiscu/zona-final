@@ -260,7 +260,7 @@ function revive(e, r) {
   pushFeed(text, 6, e === player || r === player);
   bcast({ k: 'fd', text, ids: [e.id, r.id] });
   toHuman(e, { k: 'rv' });
-  toHuman(r, { k: 'a', text: '¡Compañero reanimado!', c: '#5dffb1' });
+  toHuman(r, { k: 'a', text: '¡Compañero reanimado!', c: C_MATE() });
 }
 // El anfitrión avanza la reanimación: un compañero quieto, sin disparar y a menos de 55 de distancia
 function updateDowned(dt) {
@@ -507,24 +507,42 @@ function drawVehicle(v) {
 function setPing(e, x, y) {
   if (!e.alive || !Number.isFinite(x) || !Number.isFinite(y) || (e.ping && time - e.ping.t < 0.5 && time >= e.ping.t)) return;
   x = clamp(x, 0, WORLD); y = clamp(y, 0, WORLD);
-  for (const m of ents) if (m.human && m.team === e.team) toHuman(m, { k: 'pg', id: e.id, x: r0(x), y: r0(y) });
-  e.ping = { x, y, t: time };
+  // tipo de marca automático: enemigo cerca del punto, botín, o «vamos aquí»
+  let ty = 0, lab = '';
+  const foe = ents.find(o => o.alive && o.team !== e.team && o.air === 'ground' && dist(o.x, o.y, x, y) < 110 && canSee(e, o));
+  if (foe) { ty = 1; x = foe.x; y = foe.y; }
+  else {
+    let best = null, bd = 70;
+    for (const it of loot) { const d = dist(it.x, it.y, x, y); if (d < bd) { bd = d; best = it; } }
+    if (best) { ty = 2; lab = best.kind === 'gun' ? WEAPONS[best.gun.type].name : { med: 'Botiquín', armor: 'Escudo', nade: 'Granada', wall: 'Pared' }[best.kind] || 'Botín'; x = best.x; y = best.y; }
+    else if (boxes.some(b => dist(b.x, b.y, x, y) < 70)) { ty = 2; lab = 'Caja de botín'; }
+  }
+  for (const m of ents) if (m.human && m.team === e.team) toHuman(m, { k: 'pg', id: e.id, x: r0(x), y: r0(y), ty, lab });
+  e.ping = { x, y, t: time, ty, lab };
 }
-const pingColor = e => e === player ? '#ffd34d' : '#5dffb1';
+// Chat rápido (el anfitrión lo reparte: al equipo, o a todos en individual)
+function sayQC(e, i) {
+  if (!(i >= 0 && i < QC.length) || time - (e.qcT || -9) < 1.5) return;
+  e.qc = i; e.qcT = time;
+  for (const m of ents) if (m.human && (!teamsOn() || m.team === e.team)) toHuman(m, { k: 'qc', id: e.id, i });
+}
+const PING_INFO = [['📍', 'Vamos aquí'], ['⚠️', 'Enemigo'], ['🎁', '']];
+const pingColor = e => e === player ? '#ffd34d' : C_MATE();
 function activePings() { return player ? ents.filter(e => e.ping && e.team === player.team && time - e.ping.t < PING_LIFE && time - e.ping.t >= 0) : []; }
 function drawPingsWorld(vis) {
   for (const e of activePings()) if (vis(e.ping.x, e.ping.y, 60)) drawPing(e);
 }
 function drawPing(e) {
   {
-    const p = e.ping, k = time - p.t, c = pingColor(e);
+    const p = e.ping, k = time - p.t, c = p.ty === 1 ? '#ff5c5c' : p.ty === 2 ? '#4dabf7' : pingColor(e);
     const r = 18 + (k * 30) % 30;
     ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.strokeStyle = c; ctx.globalAlpha = 1 - ((k * 30) % 30) / 30; ctx.lineWidth = 3; ctx.stroke();
     ctx.globalAlpha = 1;
     ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - 9, p.y - 22); ctx.arc(p.x, p.y - 26, 10, Math.PI * 0.8, Math.PI * 0.2); ctx.closePath();
     ctx.fillStyle = c; ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = 2; ctx.stroke();
     ctx.beginPath(); ctx.arc(p.x, p.y - 26, 4, 0, Math.PI * 2); ctx.fillStyle = '#1b1f3b'; ctx.fill();
-    txt(e === player ? 'Tu marca' : e.name, p.x, p.y - 46, 12, c, 'center', 800);
+    const info = PING_INFO[p.ty || 0];
+    txt(`${info[0]} ${p.ty === 2 ? p.lab : info[1]} · ${e === player ? 'tú' : e.name}`, p.x, p.y - 46, 12, c, 'center', 800);
   }
 }
 // Flechas en el borde de la pantalla hacia las marcas que no se ven
@@ -838,6 +856,7 @@ function doAct(e, a, x, y) {
   if (a === 'jump') { jump(e); return; }
   if (typeof a === 'string' && /^emo[0-9]$/.test(a)) { setEmo(e, +a[3]); return; }
   if (a === 'ping') { setPing(e, x, y); return; }
+  if (typeof a === 'string' && /^qc[0-7]$/.test(a)) { sayQC(e, +a[2]); return; }
   if (!e.alive || e.air !== 'ground') return;
   if (a === 'veh') { toggleVehicle(e); return; }
   if (e.down || e.veh) return;

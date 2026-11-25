@@ -30,8 +30,8 @@ function drawMap(x, y, m, big) {
   if (teamsOn() && state !== 'menu') for (const o of ents) { // compañeros vivos
     if (o === player || !o.alive || o.team !== player.team || o.air === 'plane') continue;
     ctx.beginPath(); ctx.arc(x + o.x * s, y + o.y * s, big ? 6 : 4, 0, Math.PI * 2);
-    ctx.fillStyle = '#5dffb1'; ctx.fill(); ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; ctx.stroke();
-    if (big) txt(o.name, x + o.x * s, y + o.y * s - 14, 12, '#5dffb1', 'center', 800);
+    ctx.fillStyle = C_MATE(); ctx.fill(); ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; ctx.stroke();
+    if (big) txt(o.name, x + o.x * s, y + o.y * s - 14, 12, C_MATE(), 'center', 800);
   }
   if (big && state !== 'menu') for (const v of vehicles) { // coches libres
     if (v.driver && v.driver.team !== player.team) continue;
@@ -82,7 +82,25 @@ function drawHUD() {
     ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
   }
   updateCursor();
+  if (showFps) { // contador de FPS (Ajustes)
+    const q = typeof r3 !== 'undefined' && r3 && use3D ? ' · 3D ' + r3.q : ' · 2D';
+    txt(`${fpsNow} FPS${q}`, VW / 2, VH - 8, 11, fpsNow >= 50 ? '#9ae6b4' : fpsNow >= 30 ? '#f6e05e' : '#fc8181', 'center', 800);
+  }
   if (state === 'menu') return;
+  // burbujas de chat rápido sobre los jugadores
+  for (const e of ents) {
+    if (e.qc == null || time - e.qcT > 3 || time < e.qcT || !e.alive || (e.air === 'ground' && !e.seen && e.team !== p.team)) continue;
+    const s = w2s(e.x, e.y, typeof PS === 'number' ? 66 * PS : 0), t = QC[e.qc];
+    if (!s.ok) continue;
+    const y = s.y - (on3D() ? 30 : 58);
+    ctx.font = `800 ${bigTxt ? 14 : 12}px system-ui, "Segoe UI", sans-serif`;
+    const w = ctx.measureText(t).width + 18;
+    ctx.globalAlpha = Math.min(1, (3 - (time - e.qcT)) * 2);
+    rr(s.x - w / 2, y - 12, w, 24, 12); ctx.fillStyle = 'rgba(255,255,255,.94)'; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(s.x - 5, y + 11); ctx.lineTo(s.x, y + 18); ctx.lineTo(s.x + 5, y + 11); ctx.fill();
+    ctx.fillStyle = '#1b1f3b'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t, s.x, y);
+    ctx.globalAlpha = 1;
+  }
   const alive = ents.filter(e => e.alive).length;
 
   // panel de estado
@@ -122,7 +140,7 @@ function drawHUD() {
       ctx.save(); ctx.beginPath(); ctx.arc(24, my + 11, 8, 0, Math.PI * 2); ctx.fillStyle = o.color; ctx.fill();
       const im = avImg(o.av); if (im) { ctx.clip(); ctx.drawImage(im, 16, my + 3, 16, 16); }
       ctx.restore();
-      txt(o.name, 37, my + 11, 11, o.alive ? (o.down ? '#ff8fa3' : '#5dffb1') : '#7d84ad', 'left', 700);
+      txt(o.name, 37, my + 11, 11, o.alive ? (o.down ? C_FOE() : C_MATE()) : '#7d84ad', 'left', 700);
       if (o.alive && o.down) {
         ctx.fillStyle = '#2a2f5a'; ctx.fillRect(112, my + 8, 60, 6);
         ctx.fillStyle = Math.floor(time * 3) % 2 ? '#f56565' : '#ff9aa8'; ctx.fillRect(112, my + 8, 60 * Math.max(0, o.hp) / 100, 6);
@@ -197,14 +215,14 @@ function drawHUD() {
   if (p.down) {
     txt('🩸 ¡DERRIBADO!', VW / 2, VH * 0.3, touchMode ? 24 : 30, '#ff5c7a', 'center', 900);
     txt(p.rev > 0 ? `Te están reanimando… ${Math.floor(p.rev * 100)} %` : 'Arrástrate hasta un compañero: si se queda quieto a tu lado, te reanima',
-      VW / 2, VH * 0.3 + 30, touchMode ? 13 : 15, p.rev > 0 ? '#5dffb1' : '#eef0ff', 'center', 700);
+      VW / 2, VH * 0.3 + 30, touchMode ? 13 : 15, p.rev > 0 ? C_MATE() : '#eef0ff', 'center', 700);
   } else if (teamsOn() && !p.veh) {
     let dm = null, dd = 130;
     for (const o of ents) { if (o !== p && o.alive && o.down && o.team === p.team) { const d = dist(o.x, o.y, p.x, p.y); if (d < dd) { dd = d; dm = o; } } }
     if (dm) {
       const close = dd < 55;
       txt(close && dm.rev > 0 ? `💚 Reanimando a ${dm.name}… ${Math.floor(dm.rev * 100)} %` : close ? `💚 Quédate quieto y sin disparar para reanimar a ${dm.name}` : `Acércate a ${dm.name} para reanimarle`,
-        VW / 2, VH / 2 + 36, touchMode ? 13 : 15, '#5dffb1', 'center', 800);
+        VW / 2, VH / 2 + 36, touchMode ? 13 : 15, C_MATE(), 'center', 800);
     }
   }
 
@@ -226,7 +244,7 @@ function drawHUD() {
       ctx.fillStyle = '#ffd34d'; ctx.fillRect(x + 8, sy + 48, (sw - 16) * (1 - p.reloadT / W.reload), 3);
     } else txt(`${g.mag} / ${W.mag}`, x + 28, sy + 37, 15, g.mag === 0 ? '#f56565' : '#eef0ff', 'left', 700);
   }
-  if (p.healT > 0) txt('Curando…', VW / 2, sy - 18, 14, '#68d391', 'center', 700);
+  if (p.healT > 0) txt('Curando…', VW / 2, sy - 18, 14, C_GOOD(), 'center', 700);
 
   // recoger
   const it = p.veh || p.down ? null : nearestGunLoot();
@@ -257,7 +275,7 @@ function drawHUD() {
 
   // fuera de la zona
   if (dist(p.x, p.y, zone.x, zone.y) > zone.r) {
-    txt('¡Estás fuera de la zona! Sigue la flecha', VW / 2, 84, 17, '#ff8fa3', 'center', 800);
+    txt('¡Estás fuera de la zona! Sigue la flecha', VW / 2, 84, 17, C_FOE(), 'center', 800);
     const a = Math.atan2(zone.ty - p.y, zone.tx - p.x) - camYaw(), ax = VW / 2 + Math.cos(a) * 70, ay = VH / 2 + Math.sin(a) * 70;
     ctx.save(); ctx.translate(ax, ay); ctx.rotate(a);
     ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(-8, -10); ctx.lineTo(-8, 10); ctx.closePath();
@@ -298,6 +316,7 @@ function drawHUD() {
     ctx.stroke();
   }
   drawTutorial();
+  drawChatMenu();
   if (showMap) drawBigMap(); else drawTouchUI();
 }
 function drawBigMap() {
@@ -325,6 +344,7 @@ function touchButtons() {
     { id: 'heal', x: VW - 118, y: base - 33, icon: '➕', n: p.meds, hide: busy },
     { id: 'reload', x: VW - 52, y: base, icon: '🔄', hide: busy },
     { id: 'emo', x: VW - 184, y: base - 66, icon: '😀' },
+    { id: 'chat', x: VW - 118, y: base - 99, icon: '💬' },
     { id: 'wall', x: VW - 184, y: base, icon: '🧱', n: p.walls, hide: busy },
     { id: 'veh', x: VW - 250, y: base - 33, icon: p.veh ? '🚪' : '🚗', hide: p.down || (!p.veh && !nearFreeVehicle(p)) },
     { id: 'cam', x: VW - miniSize() - 52, y: 40, icon: '🧭', hide: !on3D() },
@@ -345,6 +365,21 @@ function drawStick(s, defX, defY, label, active) {
   ctx.beginPath(); ctx.arc(kx, ky, 26, 0, Math.PI * 2);
   ctx.fillStyle = active ? 'rgba(255,90,90,.55)' : s ? 'rgba(255,255,255,.4)' : 'rgba(255,255,255,.12)'; ctx.fill();
   if (!s) txt(label, bx, by + STICK_R + 14, 12, 'rgba(255,255,255,.4)', 'center');
+}
+// Panel de frases del chat rápido (T en teclado, 💬 en el móvil)
+let chatOpen = false;
+function chatRects() {
+  const w = touchMode ? 150 : 180, h = touchMode ? 30 : 28, x0 = VW / 2 - w - 4, y0 = touchMode ? 72 : 96;
+  return QC.map((t, i) => ({ i, t, x: x0 + (i % 2) * (w + 8), y: y0 + Math.floor(i / 2) * (h + 6), w, h }));
+}
+function drawChatMenu() {
+  if (!chatOpen || state !== 'play' || !player.alive) { if (state !== 'play') chatOpen = false; return; }
+  for (const r of chatRects()) {
+    rr(r.x, r.y, r.w, r.h, 10); ctx.fillStyle = 'rgba(10,12,28,.9)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,211,77,.8)'; ctx.lineWidth = 1.5; ctx.stroke();
+    txt((touchMode ? '' : (r.i + 1) + ' · ') + r.t, r.x + r.w / 2, r.y + r.h / 2, 13, '#ffe9a3', 'center', 700);
+  }
+  if (!touchMode) txt('Pulsa 1-8 para enviar · T para cerrar', VW / 2, chatRects()[7].y + 44, 12, '#c8cde8', 'center', 600);
 }
 function drawTouchUI() {
   if (!touchMode || state !== 'play' || paused || !player.alive) return;

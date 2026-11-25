@@ -204,6 +204,23 @@ let specMode = false, specLabel = '', resToken = 0;
 let teamSize = 1, roundDone = true, roundStats = null, emoOpen = false;
 const teamsOn = () => teamSize > 1;
 const EMOS = ['👋', '😂', '🔥', '🆘'];
+// Chat rápido: frases cortas que ven tus compañeros (o todos, en individual)
+const QC = ['¡Vamos!', 'Necesito botiquín', '¡Enemigo aquí!', 'Cúbreme', '¡Buen tiro!', 'Sígueme', 'Espera', '¡Gracias!'];
+const GAME_VER = 'zf-v21';
+// Ajustes de accesibilidad y diagnóstico (se guardan en el teléfono)
+let cbMode = false, bigTxt = false, showFps = false, musVol = 0.45;
+try {
+  cbMode = localStorage.getItem('zf-cb') === '1'; bigTxt = localStorage.getItem('zf-big') === '1'; showFps = localStorage.getItem('zf-fpsv') === '1';
+  const m = localStorage.getItem('zf-mus'); if (m != null && +m >= 0 && +m <= 1) musVol = +m;
+} catch (e) {}
+// colores de compañero / bueno / enemigo (en modo daltónico: azul y naranja)
+function C_MATE() { return cbMode ? '#4da3ff' : '#5dffb1'; }
+function C_GOOD() { return cbMode ? '#4da3ff' : '#68d391'; }
+function C_FOE() { return cbMode ? '#ffb020' : '#ff8fa3'; }
+// los últimos errores, para el informe de problemas
+const errLog = [];
+addEventListener('error', e => { errLog.push(`${e.message} @${(e.filename || '').split('/').pop()}:${e.lineno}`); if (errLog.length > 8) errLog.shift(); });
+addEventListener('unhandledrejection', e => { errLog.push('promesa: ' + String(e.reason && (e.reason.message || e.reason)).slice(0, 160)); if (errLog.length > 8) errLog.shift(); });
 let vibOn = true;
 try { vibOn = localStorage.getItem('zf-vib') !== '0'; } catch (e) {}
 function buzz(p) { if (!vibOn || !navigator.vibrate) return; try { navigator.vibrate(p); } catch (e) {} }
@@ -268,7 +285,9 @@ function tone(freq, dur, type = 'sine', vol = 0.12, slide = 0, delay = 0) {
 function listener() { return player && player.alive && player.air === 'ground' ? player : cam; }
 function spatial(x, y, range = 1400) {
   const l = listener(), d = dist(l.x, l.y, x, y);
-  return [Math.max(0, 1 - d / range), (x - l.x) / 700];
+  // izquierda/derecha según la pantalla (si la cámara 3D está girada, también)
+  const a = typeof camYaw === 'function' ? camYaw() : 0, dx = (x - l.x) * Math.cos(a) + (y - l.y) * Math.sin(a);
+  return [Math.max(0, 1 - d / range), dx / 700];
 }
 const sfx = {
   hit: () => tone(1400, 0.06, 'square', 0.05),

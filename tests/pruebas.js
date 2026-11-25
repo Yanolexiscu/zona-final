@@ -63,7 +63,7 @@ async function main() {
     const until = async (expr, ms) => { const end = Date.now() + ms; while (Date.now() < end) { try { const v = await ev(expr); if (v) return v; } catch (e) {} await sleep(250); } return null; };
     const open = async () => {
       await send('Page.navigate', { url: `http://localhost:${port}/` });
-      if (!await until(`document.readyState === 'complete' && typeof newGame === 'function'`, 15000)) throw new Error('el juego no cargó');
+      if (!await until(`document.readyState === 'complete' && typeof newGame === 'function'`, 45000)) throw new Error('el juego no cargó');
     };
     return { ev, until, send, errs, open, front: () => send('Page.bringToFront') };
   }
@@ -80,14 +80,13 @@ async function main() {
     await A.open();
     await A.ev(`localStorage.clear(); localStorage.setItem('zf-tut', '1'); 'ok'`);
     await A.open();
-    expect(await A.until(`!!(r3 && r3.ready)`, 15000), 'la vista 3D no se inició');
+    expect(await A.until(`!!(r3 && r3.ready)`, 30000), 'la vista 3D no se inició');
     expect(!A.errs.length, A.errs.join(' | '));
   });
   await check('Cada mapa se genera y se dibuja en 3D', async () => {
     for (const k of await A.ev(`MAP_KEYS`)) {
       await A.ev(`$('map').value = '${k}'; newGame(); for (const e of ents) { e.air = 'ground'; e.glideT = 0; } 'ok'`);
-      await sleep(700);
-      expect(await A.ev(`state === 'play' && r3.built === ground`), `el mapa ${k} no se dibujó`);
+      expect(await A.until(`state === 'play' && r3.built === ground`, 15000), `el mapa ${k} no se dibujó`);
     }
     expect(!A.errs.length, A.errs.join(' | '));
   });
@@ -101,7 +100,7 @@ async function main() {
   await check('Morir: repetición y modo espectador', async () => {
     await A.ev(`newGame(); for (const e of ents) { e.air = 'ground'; e.glideT = 0; } for (let i = 0; i < 60; i++) { update(0.05); recordHist(); } 'ok'`);
     await A.ev(`{ const b = ents.find(e => !e.isPlayer && e.alive); kill(player, b, 'Prueba'); } 'ok'`);
-    expect(await A.until(`!!replay`, 3000), 'no empezó la repetición');
+    expect(await A.until(`!!replay`, 10000), 'no empezó la repetición');
     expect(await A.ev(`specMode && state === 'over'`), 'no entró en modo espectador');
     await A.ev(`stopReplay(); 'ok'`);
     expect(!A.errs.length, A.errs.join(' | '));

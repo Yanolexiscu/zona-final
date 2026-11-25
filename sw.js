@@ -1,6 +1,6 @@
-// Service worker de Zona Final: guarda el juego para que abra sin conexión.
-// Cuando cambies index.html, sube el número de versión para que los teléfonos descarguen la nueva.
-const VERSION = 'zf-v20';
+﻿// Service worker de Zona Final: guarda el juego para que abra sin conexiÃ³n.
+// Cuando cambies index.html, sube el nÃºmero de versiÃ³n para que los telÃ©fonos descarguen la nueva.
+const VERSION = 'zf-v21';
 const SHELL = [
   './',
   './index.html',
@@ -32,7 +32,7 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
 
-  // Páginas (incluye enlaces de invitación ?sala=XXXX): primero red, si no hay, la copia guardada.
+  // PÃ¡ginas (incluye enlaces de invitaciÃ³n ?sala=XXXX): primero red, si no hay, la copia guardada.
   if (req.mode === 'navigate') {
     e.respondWith(
       fetch(req, { cache: 'no-cache' })
@@ -42,7 +42,7 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Código del juego (js/): primero la red para que siempre coincida con index.html; sin conexión, la copia guardada.
+  // CÃ³digo del juego (js/): primero la red para que siempre coincida con index.html; sin conexiÃ³n, la copia guardada.
   if (url.origin === self.location.origin && /\/js\/[^/]+\.js$/.test(url.pathname)) {
     e.respondWith(
       fetch(req, { cache: 'no-cache' })
@@ -52,7 +52,7 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Archivos propios y la librería PeerJS: primero la copia guardada, y se actualiza en segundo plano.
+  // Archivos propios y la librerÃ­a PeerJS: primero la copia guardada, y se actualiza en segundo plano.
   const sameOrigin = url.origin === self.location.origin;
   const isPeer = /peerjs@1\.5\.4/.test(url.href);
   if (!sameOrigin && !isPeer) return; // el resto (servidor de PeerJS, etc.) va directo a la red

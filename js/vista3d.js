@@ -720,7 +720,7 @@ function syncEnt(e, f, dt) {
   md.mat.emissive.copy(e.hitT > 0 ? WHITE3 : md.glow);
   // aro de color: tú (blanco), amigos (su color), compañeros (verde), derribado (rojo que late)
   const mate = teamsOn() && !e.isPlayer && player && e.team === player.team;
-  const rc = e.down ? '#ff465a' : ringOf(e) || (mate ? '#5dffb1' : null);
+  const rc = e.down ? '#ff465a' : ringOf(e) || (mate ? C_MATE() : null);
   md.ring.visible = !!rc && e.air === 'ground';
   if (rc) { md.ring.material.color.copy(col3(rc)); md.ring.material.opacity = e.down ? 0.4 + Math.sin(time * 6) * 0.35 : 0.85; }
 }
@@ -1157,7 +1157,7 @@ function render3D(dt) {
     if (v.hp < VEH_HP) bar3(p.x, p.y, v.hp / VEH_HP, v.hp > VEH_HP * 0.4 ? '#9ae6b4' : '#f6ad55');
     const d = v.driver;
     if (d && d !== player && (d.human || (teamsOn() && d.team === player.team)))
-      txt(d.name, p.x, p.y - 12, 12, d.team === player.team && teamsOn() ? '#5dffb1' : d.color, 'center', 800);
+      txt(d.name, p.x, p.y - 12, 12, d.team === player.team && teamsOn() ? C_MATE() : d.color, 'center', 800);
   }
   if (state !== 'menu') for (const e of ents) {
     if (!e.alive || e.air === 'plane') continue;
@@ -1165,7 +1165,7 @@ function render3D(dt) {
       const p = w2s(e.x, e.y, 30 + clamp(e.glideT / GLIDE, 0, 1) * 520 + 118 * PS);
       if (!onScreen(p)) continue;
       if (e.isPlayer) txt('Tú', p.x, p.y, 14, '#ffd34d', 'center', 800);
-      else if (teamsOn() && player && e.team === player.team) txt('🤝 ' + e.name, p.x, p.y, 13, '#5dffb1', 'center', 800);
+      else if (teamsOn() && player && e.team === player.team) txt('🤝 ' + e.name, p.x, p.y, 13, C_MATE(), 'center', 800);
       else if (e.human) txt(e.name, p.x, p.y, 13, e.color, 'center', 800);
       continue;
     }
@@ -1175,17 +1175,17 @@ function render3D(dt) {
     const mine = player && e.team === player.team, mate = teamsOn() && !e.isPlayer && mine;
     if (e.down) {
       bar3(p.x, p.y, e.hp / 100, '#fc8181');
-      if (e.rev > 0) bar3(p.x, p.y - 7, Math.min(1, e.rev), '#5dffb1');
-      txt(`🩸 ${e.isPlayer ? 'Tú' : e.name}`, p.x, p.y - 18, 12, mine ? '#5dffb1' : '#ff8fa3', 'center', 800);
+      if (e.rev > 0) bar3(p.x, p.y - 7, Math.min(1, e.rev), C_MATE());
+      txt(`🩸 ${e.isPlayer ? 'Tú' : e.name}`, p.x, p.y - 18, 12, mine ? C_MATE() : C_FOE(), 'center', 800);
       continue;
     }
     let y = p.y;
     if (!e.isPlayer && (time - e.lastHurt < 3 || mate)) {
-      bar3(p.x, y, e.hp / 100, e.hp > 50 ? '#68d391' : e.hp > 25 ? '#f6ad55' : '#fc8181'); y -= 7;
+      bar3(p.x, y, e.hp / 100, e.hp > 50 ? C_GOOD() : e.hp > 25 ? '#f6ad55' : '#fc8181'); y -= 7;
       if (e.armor > 0) { bar3(p.x, y, e.armor / 100, '#63b3ed'); y -= 7; }
     }
-    if (e.healT > 0) { bar3(p.x, y, 1 - e.healT / healDur(e), '#68d391'); y -= 7; }
-    if (mate) txt(e.name, p.x, y - 8, 12, '#5dffb1', 'center', 800);
+    if (e.healT > 0) { bar3(p.x, y, 1 - e.healT / healDur(e), C_GOOD()); y -= 7; }
+    if (mate) txt(e.name, p.x, y - 8, 12, C_MATE(), 'center', 800);
     else if (e.human && !e.isPlayer) txt(e.name, p.x, y - 8, 12, e.color, 'center', 800);
   }
   if (state !== 'menu') {

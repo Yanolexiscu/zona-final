@@ -433,7 +433,7 @@ function connectToHost(peer, code, attempt, recon) {
     if (net.host !== conn || done) return;
     ok = true; clearTimeout(to); net.lastMsg = performance.now();
     try { netSend(conn, { t: 'hello', name: getName(), av: myAv, ch: myCh, sk: mySk, rk: net.rk }); } catch (e) {}
-    if (net.reconT) { net.reconT = 0; showAnnounce('✅ ¡Reconectado!', '#5dffb1'); }
+    if (net.reconT) { net.reconT = 0; showAnnounce('✅ ¡Reconectado!', C_MATE()); }
     lobbyMsg('¡Conectado! Esperando a que el anfitrión empiece…');
   });
   conn.on('data', raw => { if (net.host === conn) { net.lastMsg = performance.now(); const m = netRecv(conn, raw); if (m) clientOnData(m); } });
@@ -596,12 +596,12 @@ function handleEvent(ev) {
     }
     case 'win': teamWon(); break;
     case 'kn': showAnnounce('🩸 ¡Derribado!', '#ff5c7a'); hurtFlash = 0.5; buzz([120, 60, 220]); sfx.lose(); break;
-    case 'rv': showAnnounce('💚 ¡Te reanimaron!', '#5dffb1'); buzz(80); sfx.heal(); break;
+    case 'rv': showAnnounce('💚 ¡Te reanimaron!', C_MATE()); buzz(80); sfx.heal(); break;
     case 'pg': {
       const o = ents[ev.id];
       if (o && Number.isFinite(ev.x) && Number.isFinite(ev.y)) {
-        o.ping = { x: ev.x, y: ev.y, t: time };
-        if (o !== player) { tone(1320, 0.07, 'sine', 0.06); tone(990, 0.1, 'sine', 0.05, 0, 0.08); }
+        o.ping = { x: ev.x, y: ev.y, t: time, ty: ev.ty | 0, lab: String(ev.lab || '').slice(0, 24) };
+        if (o !== player) { if (ev.ty === 1) { tone(1500, 0.06, 'square', 0.05); tone(1500, 0.06, 'square', 0.05, 0, 0.12); } else { tone(1320, 0.07, 'sine', 0.06); tone(990, 0.1, 'sine', 0.05, 0, 0.08); } }
       }
       break;
     }
@@ -609,6 +609,15 @@ function handleEvent(ev) {
     case 'wd': if (net.role === 'client') removeShield(ev.id); break;
     case 'vx': if (net.role === 'client') { explodeFx(ev.x, ev.y); vehicles = vehicles.filter(v => v.id !== ev.id); if (player.veh && player.veh.id === ev.id) player.veh = null; } break;
     case 'pl': if (ev.place > 0) player.place = ev.place; break;
+    case 'qc': {
+      const o = ents[ev.id];
+      if (o && ev.i >= 0 && ev.i < QC.length) {
+        o.qc = ev.i; o.qcT = time;
+        pushFeed(`💬 ${o === player ? 'Tú' : o.name}: ${QC[ev.i]}`, 6, o === player);
+        if (o !== player) tone(880, 0.06, 'triangle', 0.06);
+      }
+      break;
+    }
     case 'em': {
       if (net.role !== 'client') break;
       const o = ents[ev.id];

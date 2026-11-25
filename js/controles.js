@@ -23,6 +23,9 @@ addEventListener('keydown', e => {
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
   if (e.repeat) return;
   if (e.code === 'KeyC') { rotateCam(); return; }
+  if (e.code === 'KeyT') { chatOpen = !chatOpen && player.alive; return; }
+  if (chatOpen && /^Digit[1-8]$/.test(e.code)) { act('qc' + (+e.code[5] - 1)); chatOpen = false; return; }
+  if (chatOpen && e.code === 'Escape') { chatOpen = false; return; }
   if (player.air === 'plane') { if (e.code === 'Space' || e.code === 'KeyE' || e.code === 'KeyF') act('jump'); return; }
   if (e.code === 'KeyZ') { const m = mouseWorld(); act('ping', m.x, m.y); tone(880, 0.08, 'sine', 0.07); return; }
   if (player.air !== 'ground') return;
@@ -50,6 +53,7 @@ function pressButton(id) {
   const p = player;
   if (id === 'emo') { emoOpen = !emoOpen; return; }
   if (id === 'cam') { rotateCam(); return; }
+  if (id === 'chat') { chatOpen = !chatOpen; emoOpen = false; return; }
   if (id === 'reload') act('reload');
   else if (id === 'heal') act('heal');
   else if (id === 'wall') act('wall', p.ang);
@@ -75,6 +79,11 @@ cv.addEventListener('pointerdown', e => {
   if (dist(x, y, 30, 27) < 26) { setPause(true); return; }
   if (inRect(x, y, uiRects.minimap)) { showMap = true; return; }
   if (player.air === 'plane') { act('jump'); return; }
+  if (chatOpen) {
+    for (const r of chatRects()) if (inRect(x, y, r)) { act('qc' + r.i); chatOpen = false; return; }
+    const cb = touchButtons().find(b => b.id === 'chat');
+    if (!cb || dist(x, y, cb.x, cb.y) >= BTN_R + 10) chatOpen = false;
+  }
   if (player.air === 'ground') {
     if (emoOpen) {
       for (const b of emoButtons()) if (dist(x, y, b.x, b.y) < 26) { act('emo' + b.i); emoOpen = false; return; }
@@ -262,9 +271,32 @@ $('q3d').value = qualSet;
 function openSettings() {
   $('v3d').checked = use3D; $('q3d').value = qualSet; $('psz').value = PS; $('vol').value = vol;
   $('vib').checked = vibOn; $('aimA').checked = aimAssist; $('fps30').checked = fps30; $('wxOn').checked = wxOn;
+  $('mus').value = musVol; $('cbm').checked = cbMode; $('bigT').checked = bigTxt; $('fpsV').checked = showFps; $('repMsg').textContent = '';
   $('settings').classList.remove('hidden');
 }
 $('setBtn').onclick = openSettings;
+$('mus').oninput = () => { musVol = +$('mus').value; saveSet('zf-mus', musVol); musicLevel(); };
+$('cbm').onchange = () => { cbMode = $('cbm').checked; saveSet('zf-cb', cbMode ? 1 : 0); };
+$('bigT').onchange = () => { bigTxt = $('bigT').checked; saveSet('zf-big', bigTxt ? 1 : 0); document.body.classList.toggle('bigtxt', bigTxt); };
+$('fpsV').onchange = () => { showFps = $('fpsV').checked; saveSet('zf-fpsv', showFps ? 1 : 0); };
+document.body.classList.toggle('bigtxt', bigTxt);
+// Informe de problemas: copia los datos del teléfono para pegarlos en el chat con Claude
+$('repBtn').onclick = async () => {
+  let gpu = '—';
+  try { const gl = (typeof r3 !== 'undefined' && r3) ? r3.renderer.getContext() : document.createElement('canvas').getContext('webgl'); const ext = gl && gl.getExtension('WEBGL_debug_renderer_info'); gpu = gl ? (ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)) : 'sin WebGL'; } catch (e) {}
+  const lines = [
+    `Zona Final ${GAME_VER} · informe`,
+    `Dispositivo: ${navigator.userAgent}`,
+    `Pantalla: ${VW}x${VH} · DPR ${(window.devicePixelRatio || 1).toFixed(2)} · táctil ${touchMode ? 'sí' : 'no'} · mando ${pad.used ? 'sí' : 'no'}`,
+    `Gráficos: ${gpu}`,
+    `Vista: ${use3D ? '3D' : '2D'} · calidad ${typeof r3 !== 'undefined' && r3 ? r3.q : '—'} (ajuste ${qualSet}) · FPS ahora ${fpsNow} · 30FPS ${fps30 ? 'sí' : 'no'}`,
+    `Partida: ${state} · mapa ${mapKey} · clima ${wx} · red ${net.role} · jugadores ${ents ? ents.length : 0}`,
+    `Errores: ${errLog.length ? errLog.join(' | ') : 'ninguno'}`,
+  ];
+  const text = lines.join('\n');
+  try { await navigator.clipboard.writeText(text); $('repMsg').textContent = '✅ Copiado. Pégalo en el chat con Claude y cuenta qué pasó.'; }
+  catch (e) { $('repMsg').textContent = 'No se pudo copiar automáticamente. Mantén pulsado el texto de abajo y cópialo:'; $('repTxt').value = text; $('repTxt').hidden = false; }
+};
 $('misBtn').onclick = openMissions;
 $('profBtn').onclick = openProfile;
 $('misOk').onclick = () => $('missions').classList.add('hidden');
@@ -296,9 +328,51 @@ $('specSkip').onclick = () => finishSpectate(null, 0);
 
 /* ---------- Bucle principal ---------- */
 let lastT = performance.now();
+/* ---------- Mando (Xbox / PlayStation) ---------- */
+// Stick izquierdo: moverte · stick derecho: apuntar · RT/R2: disparar · A: saltar/recoger · B: recargar · X: curarte
+// Y: cambiar de arma · LB: granada · RB: pared · cruceta ↑: reacción · ↓: coche · ←/→: girar cámara · Start: pausa · Select: mapa
+const pad = { prev: [], aimA: 0, used: false };
+function pollPad() {
+  const gp = navigator.getGamepads ? Array.from(navigator.getGamepads()).find(g => g && g.connected) : null;
+  if (!gp) return;
+  const B = gp.buttons.map(b => b.pressed || b.value > 0.5), ax = gp.axes, P = pad.prev;
+  const hit = i => B[i] && !P[i];
+  const lx = ax[0] || 0, ly = ax[1] || 0, rx = ax[2] || 0, ry = ax[3] || 0, lm = Math.hypot(lx, ly), rm = Math.hypot(rx, ry);
+  if (lm > 0.2 || rm > 0.25 || B.some(Boolean)) pad.used = true;
+  pad.prev = B;
+  if (!pad.used) return;
+  if (state === 'menu' || state === 'over') { if (hit(0) && state === 'menu' && $('menu') && !$('menu').classList.contains('hidden')) newGame(); if (hit(9) && state === 'over') toMenu(); return; }
+  if (state !== 'play') return;
+  if (hit(9)) { setPause(!paused); return; }
+  if (paused) return;
+  if (hit(8)) showMap = !showMap;
+  if (!player.alive) { if (hit(14)) specCycle(-1); if (hit(15)) specCycle(1); return; }
+  touch.move = lm > 0.2 ? { padM: true, dx: lx / Math.max(1, lm), dy: ly / Math.max(1, lm), mag: Math.min(1, lm) } : (touch.move && touch.move.padM ? null : touch.move);
+  if (player.air === 'plane') { if (hit(0)) act('jump'); return; }
+  if (rm > 0.25) pad.aimA = Math.atan2(ry, rx) + camYaw();
+  if (rm > 0.25 || pad.aimSet) {
+    const p = player, r = 220 / cam.z, s = w2s(p.x + Math.cos(pad.aimA) * r, p.y + Math.sin(pad.aimA) * r, AIM_H);
+    mouse.x = s.x; mouse.y = s.y; pad.aimSet = true;
+  }
+  const fire = (gp.buttons[7] && gp.buttons[7].value > 0.4) || B[7];
+  if (fire && !pad.fire) mouse.pressed = true;
+  mouse.down = fire; pad.fire = fire;
+  if (hit(0)) act('pickup');
+  if (hit(1)) act('reload');
+  if (hit(2)) act('heal');
+  if (hit(3)) act(player.slot === 0 ? 's1' : 's0');
+  if (hit(4)) act('nade', player.x + Math.cos(player.ang) * 240, player.y + Math.sin(player.ang) * 240);
+  if (hit(5)) act('wall', player.ang);
+  if (hit(12)) act('emo' + Math.floor(Math.random() * EMOS.length));
+  if (hit(13)) act('veh');
+  if (hit(14) || hit(15)) rotateCam();
+}
+let fpsNow = 0, fpsN = 0, fpsT0 = 0;
 function frame(t) {
   if (fps30 && t - lastT < 30) { requestAnimationFrame(frame); return; } // ahorro de batería
   const dt = Math.min(0.05, Math.max(0, (t - lastT) / 1000)); lastT = t;
+  fpsN++; if (t - fpsT0 > 1000) { fpsNow = Math.round(fpsN * 1000 / (t - fpsT0)); fpsN = 0; fpsT0 = t; }
+  pollPad();
   if (touchMode && VH > VW && state === 'play' && !paused) setPause(true); // en vertical se pausa
   const live = state === 'play' || state === 'over';
   // en multijugador la partida no se detiene aunque abras la pausa
