@@ -2275,6 +2275,7 @@ function drawLoot(it) {
 function drawPerson(c, sk, x, y, ang, o = {}) {
   const S = SKINS[sk] || SKINS[0], dark = 'rgba(0,0,0,.5)';
   c.save(); c.translate(x, y); c.rotate(ang);
+  if (o.sc) c.scale(o.sc, o.sc);
   if (S.alpha) c.globalAlpha *= S.alpha;
   c.lineCap = 'round'; c.lineJoin = 'round';
   // mochila
@@ -2552,7 +2553,7 @@ function drawDowned(e) {
   ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 10 + pulse * 4, 0, Math.PI * 2);
   ctx.strokeStyle = `rgba(255,70,90,${0.35 + pulse * 0.4})`; ctx.lineWidth = 3; ctx.stroke();
   ctx.save(); ctx.globalAlpha = 0.75;
-  drawPerson(ctx, e.sk, e.x, e.y, e.ang, { pose: 'lying', hit: e.hitT > 0, av: e.av, ring: ringOf(e) });
+  drawPerson(ctx, e.sk, e.x, e.y, e.ang, { sc: 1.25, pose: 'lying', hit: e.hitT > 0, av: e.av, ring: ringOf(e) });
   ctx.restore();
   if (e.rev > 0) {
     ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 6, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, e.rev));
@@ -2573,7 +2574,7 @@ function drawEnt(e) {
   if (md < 40) e.stepP = (e.stepP || 0) + md * 0.16;
   e.walkA = lerp(e.walkA || 0, md > 0.4 ? 1 : 0, 0.25);
   drawPerson(ctx, e.sk, e.x, e.y, e.ang, {
-    step: e.stepP, walk: e.walkA,
+    sc: 1.25, step: e.stepP, walk: e.walkA,
     W, tier: g ? g.tier : 0, rc: Math.max(0, 0.08 - (time - e.lastShot)) * 45, flash: time - e.lastShot < 0.05,
     hit: e.hitT > 0, av: e.av, ring: ringOf(e),
   });
@@ -2923,7 +2924,7 @@ function render(dt) {
    mundo (x, y) → Three (x, altura, y). El lienzo 2D queda encima para textos y la interfaz. */
 let THREE = null, r3 = null, use3D = true;
 try { use3D = localStorage.getItem('zf-3d') !== '0'; } catch (e) {}
-const AIM_H = 30, WALL_H = 70, PITCH = 0.98, PS = 1.3; // PS: tamaño de los personajes
+const PS = 1.7, AIM_H = 23 * PS, WALL_H = 74, PITCH = 0.98; // PS: tamaño de los personajes (más grandes que en 2D para verlos bien)
 const on3D = force => !!(use3D && r3 && (force || r3.ready));
 // Calidad: baja (sin sombras), media, alta. En «auto» baja sola si el teléfono no llega a 40 FPS.
 const QUALS = { baja: { pr: 0.85, sh: 0, fx: false }, media: { pr: 1.25, sh: 1024, fx: true }, alta: { pr: 2, sh: 2048, fx: true } };
@@ -3783,7 +3784,7 @@ function render3D(dt) {
   if (r3.w !== VW || r3.h !== VH || r3.pr !== pr) { r3.w = VW; r3.h = VH; r3.pr = pr; renderer.setPixelRatio(pr); renderer.setSize(VW, VH, false); c3.aspect = VW / VH; c3.updateProjectionMatrix(); }
   const f = state === 'menu' ? null : focusEnt();
   // cámara inclinada que sigue a cam (norte arriba, como en 2D)
-  const D = VH / cam.z * (touchMode ? 1.02 : 0.86), sh = shake > 0 ? shake * 14 : 0;
+  const D = VH / cam.z * (touchMode ? 0.95 : 0.84), sh = shake > 0 ? shake * 14 : 0;
   const tx = cam.x + rand(-sh, sh), tz = cam.y + rand(-sh, sh);
   r3.yaw = lerp(r3.yaw, r3.yawT, Math.min(1, dt * 8 + 0.02));
   const ys = Math.sin(r3.yaw), yc = Math.cos(r3.yaw); // (ys, -yc): dirección del mundo que queda «arriba» en pantalla
@@ -3861,11 +3862,11 @@ function render3D(dt) {
     Q.setFromAxisAngle(V.set(0, 1, 0), -a);
     if (b.rk) {
       if (nr >= 60) continue;
-      M.compose(V.set(b.x, 37, b.y), Q, Sv.set(16, 6, 6)); r3.rk.setMatrixAt(nr++, M);
+      M.compose(V.set(b.x, 29 * PS, b.y), Q, Sv.set(18, 7, 7)); r3.rk.setMatrixAt(nr++, M);
     } else {
       if (nb >= 900) continue;
       const L = sp * 0.024;
-      M.compose(V.set(b.x - Math.cos(a) * L / 2, 37, b.y - Math.sin(a) * L / 2), Q, Sv.set(L, 2.8, 2.8)); r3.bul.setMatrixAt(nb++, M);
+      M.compose(V.set(b.x - Math.cos(a) * L / 2, 29 * PS, b.y - Math.sin(a) * L / 2), Q, Sv.set(L, 3.2, 3.2)); r3.bul.setMatrixAt(nb++, M);
     }
   }
   r3.bul.count = nb; r3.bul.instanceMatrix.needsUpdate = true;
@@ -4016,7 +4017,7 @@ function render3D(dt) {
   if (state !== 'menu') for (const e of ents) {
     if (!e.alive || e.air === 'plane') continue;
     if (e.air === 'glide') {
-      const p = w2s(e.x, e.y, 30 + clamp(e.glideT / GLIDE, 0, 1) * 520 + 150);
+      const p = w2s(e.x, e.y, 30 + clamp(e.glideT / GLIDE, 0, 1) * 520 + 118 * PS);
       if (!onScreen(p)) continue;
       if (e.isPlayer) txt('Tú', p.x, p.y, 14, '#ffd34d', 'center', 800);
       else if (teamsOn() && player && e.team === player.team) txt('🤝 ' + e.name, p.x, p.y, 13, '#5dffb1', 'center', 800);
@@ -4024,7 +4025,7 @@ function render3D(dt) {
       continue;
     }
     if (!e.seen || e.veh) continue;
-    const p = w2s(e.x, e.y, e.down ? 28 : 78);
+    const p = w2s(e.x, e.y, e.down ? 22 * PS : 60 * PS);
     if (!onScreen(p)) continue;
     const mine = player && e.team === player.team, mate = teamsOn() && !e.isPlayer && mine;
     if (e.down) {
@@ -4046,12 +4047,12 @@ function render3D(dt) {
     for (const e of activePings()) atWorld(e.ping.x, e.ping.y, 0, () => drawPing(e));
     for (const e of ents) {
       if (!e.alive || time - e.emoT > 2.6 || (e.air === 'ground' && !e.seen) || e.air === 'plane') continue;
-      const h = e.air === 'glide' ? 30 + clamp(e.glideT / GLIDE, 0, 1) * 520 + 130 : 52;
+      const h = e.air === 'glide' ? 30 + clamp(e.glideT / GLIDE, 0, 1) * 520 + 100 * PS : 40 * PS;
       atWorld(e.x, e.y, h, () => drawEmo(e));
     }
   }
   for (const fl of floats) {
-    const p = w2s(fl.x, fl.y + 26, 66);
+    const p = w2s(fl.x, fl.y + 26, 52 * PS);
     if (!onScreen(p)) continue;
     ctx.globalAlpha = Math.min(1, fl.t * 2);
     const s = 1 + Math.max(0, fl.t - 0.85) * 3;
