@@ -29,6 +29,17 @@
   .srow input[type=range] { width: 140px; accent-color: var(--accent); }
   .srow input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--accent); }
   .set-card > button { margin-top: 12px; display: block; width: 100%; }
+  .mis { padding: 10px 4px; border-bottom: 1px solid var(--line); text-align: left; }
+  .mis .mt { display: flex; justify-content: space-between; gap: 10px; color: var(--text); font-weight: 700; font-size: .93rem; }
+  .mis .mt span:last-child { color: var(--accent); white-space: nowrap; }
+  .mis .bar { height: 8px; border-radius: 4px; background: #262b52; margin-top: 7px; overflow: hidden; }
+  .mis .bar i { display: block; height: 100%; background: linear-gradient(90deg, #5dffb1, #2fbf7f); }
+  .mis.done .mt span:first-child { text-decoration: line-through; color: var(--muted); }
+  .mis small { color: var(--muted); font-size: .78rem; }
+  .prof { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; margin-top: 8px; }
+  .prof div { background: #1b1f3b; border: 1px solid var(--line); border-radius: 10px; padding: 9px 8px; }
+  .prof b { display: block; font-size: 1.25rem; color: var(--text); }
+  .prof span { font-size: .75rem; color: var(--muted); }
   .menu-btns { display: flex; gap: 8px; justify-content: center; margin: -4px 0 14px; flex-wrap: wrap; }
   .menu-btns button { padding: 8px 12px; font-size: .9rem; }
   .v3d { display: flex; margin: -6px auto 14px; color: var(--muted); font-size: .9rem; gap: 6px; align-items: center; justify-content: center; }
@@ -317,6 +328,24 @@
       <button class="sec" id="pauseSet" type="button">⚙️ Ajustes</button>
       <button class="sec" id="quit">Abandonar</button>
     </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="missions">
+  <div class="card set-card">
+    <div class="big">📋 Misiones de hoy</div>
+    <p style="margin:0 0 6px" id="misInfo"></p>
+    <div id="misList"></div>
+    <button id="misOk" type="button">Listo</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="profile">
+  <div class="card set-card">
+    <div class="big">📊 Tu perfil</div>
+    <p style="margin:0 0 6px" id="profName"></p>
+    <div class="prof" id="profGrid"></div>
+    <button id="profOk" type="button">Listo</button>
   </div>
 </div>
 
@@ -989,7 +1018,7 @@ function spawnEnts(humans = [{ name: 'Tú' }]) {
       ? makeEnt(i === 0, h.name, HUMAN_COLORS[i % HUMAN_COLORS.length])
       : makeEnt(false, names[i % names.length], `hsl(${Math.floor(rand(0, 360))},55%,58%)`);
     e.id = i; e.human = !!h; e.conn = (h && h.conn) || null; e.av = (h && cleanAv(h.av)) || '';
-    e.team = Math.floor(i / teamSize); e.key = h ? (h.conn ? h.conn.peer : 'h') : '';
+    e.team = Math.floor(i / teamSize); e.key = h ? (h.conn ? h.conn.peer : 'h') : ''; e.rk = h && h.conn ? h.conn.rk || '' : '';
     e.ch = h ? (CHARS[h.ch] ? h.ch : 0) : Math.floor(Math.random() * CHARS.length);
     e.sk = h ? (SKINS[h.sk] ? h.sk : 0) : Math.floor(Math.random() * SKINS.length);
     e.walls = chIs(e, 'ingeniera') ? 3 : 1;
@@ -2733,6 +2762,16 @@ function drawPlane() {
   }
 }
 function render(dt) {
+  if (replay) {
+    if (replayBegin()) {
+      try { renderNow(dt); } finally { replayEnd(); }
+      drawReplayBanner();
+      return;
+    }
+  }
+  renderNow(dt);
+}
+function renderNow(dt) {
   if (on3D(true)) {
     try { render3D(dt); return; }
     catch (err) { console.error('Fallo en 3D, vuelvo a 2D', err); use3D = false; $('v3d').checked = false; $('c3').style.display = 'none'; }
@@ -2982,6 +3021,142 @@ function render(dt) {
   drawHUD();
 }
 
+
+/* ---------- Misiones diarias (3 al día, dan monedas) ---------- */
+const MIS_POOL = [
+  { id: 'k3', txt: 'Consigue 3 bajas', k: 'kills', n: 3, r: 60 },
+  { id: 'k8', txt: 'Consigue 8 bajas', k: 'kills', n: 8, r: 120 },
+  { id: 'g3', txt: 'Juega 3 partidas', k: 'games', n: 3, r: 50 },
+  { id: 'g5', txt: 'Juega 5 partidas', k: 'games', n: 5, r: 80 },
+  { id: 't5', txt: 'Queda 2 veces en el top 5', k: 'top5', n: 2, r: 90 },
+  { id: 'w1', txt: 'Gana una partida', k: 'wins', n: 1, r: 150 },
+  { id: 'd5', txt: 'Haz 500 de daño', k: 'dmg', n: 500, r: 70 },
+  { id: 'd15', txt: 'Haz 1500 de daño', k: 'dmg', n: 1500, r: 120 },
+  { id: 'ni', txt: 'Juega una partida en el mapa de Noche 🌙', k: 'night', n: 1, r: 50 },
+  { id: 'tm', txt: 'Juega 2 partidas en dúos o escuadras', k: 'team', n: 2, r: 70 },
+  { id: 'fr', txt: 'Juega una partida con amigos', k: 'friends', n: 1, r: 80 },
+];
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
+function missions() {
+  let M = null;
+  try { M = JSON.parse(localStorage.getItem('zf-mis')); } catch (e) {}
+  const day = today();
+  if (!M || M.day !== day || !Array.isArray(M.list)) {
+    let h = 0; for (const ch of day) h = (h * 31 + ch.charCodeAt(0)) % 1000003;
+    const pool = MIS_POOL.slice(), list = [];
+    while (list.length < 3 && pool.length) { h = (h * 1103515245 + 12345) % 2147483647; const m = pool.splice(h % pool.length, 1)[0]; if (!list.some(x => MIS_POOL.find(q => q.id === x.id).k === m.k)) list.push({ id: m.id, p: 0, done: false }); }
+    M = { day, list };
+    try { localStorage.setItem('zf-mis', JSON.stringify(M)); } catch (e) {}
+  }
+  return M;
+}
+function misAdd(k, v) {
+  if (!v) return;
+  const M = missions();
+  for (const it of M.list) {
+    const m = MIS_POOL.find(q => q.id === it.id);
+    if (!m || m.k !== k || it.done) continue;
+    it.p = Math.min(m.n, it.p + v);
+    if (it.p >= m.n) {
+      it.done = true; coins += m.r; roundCoins += m.r; saveWallet();
+      pushFeed(`📋 ¡Misión cumplida! ${m.txt} · +🪙${m.r}`, 7, true);
+    }
+  }
+  try { localStorage.setItem('zf-mis', JSON.stringify(M)); } catch (e) {}
+}
+function openMissions() {
+  const M = missions(), box = $('misList');
+  box.textContent = '';
+  for (const it of M.list) {
+    const m = MIS_POOL.find(q => q.id === it.id);
+    if (!m) continue;
+    const d = document.createElement('div'); d.className = 'mis' + (it.done ? ' done' : '');
+    const t = document.createElement('div'); t.className = 'mt';
+    const a = document.createElement('span'); a.textContent = (it.done ? '✅ ' : '') + m.txt;
+    const b = document.createElement('span'); b.textContent = `🪙 ${m.r}`;
+    t.append(a, b);
+    const bar = document.createElement('div'); bar.className = 'bar';
+    const fill = document.createElement('i'); fill.style.width = `${Math.round(it.p / m.n * 100)}%`; bar.appendChild(fill);
+    const sm = document.createElement('small'); sm.textContent = `${Math.floor(it.p)} / ${m.n}`;
+    d.append(t, bar, sm); box.appendChild(d);
+  }
+  const now = new Date(), mid = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1), hrs = Math.ceil((mid - now) / 3600000);
+  $('misInfo').textContent = `Se cuentan al terminar cada partida. Nuevas misiones en ${hrs} h.`;
+  $('missions').classList.remove('hidden');
+}
+function openProfile() {
+  const s = loadStats(), g = s.games || 0, fav = s.maps ? Object.entries(s.maps).sort((a, b) => b[1] - a[1])[0] : null;
+  const mins = Math.round((s.time || 0) / 60);
+  const tiles = [
+    ['Partidas', g], ['Victorias', s.wins || 0], ['% victorias', g ? Math.round((s.wins || 0) / g * 100) + ' %' : '—'],
+    ['Bajas', s.kills || 0], ['Bajas por partida', g ? ((s.kills || 0) / g).toFixed(1) : '—'], ['Más bajas en una', s.bestKills || 0],
+    ['Mejor puesto', s.best ? '#' + s.best : '—'], ['Veces en top 5', s.top5 || 0], ['Daño total', Math.round(s.dmg || 0)],
+    ['Tiempo jugado', mins >= 60 ? `${Math.floor(mins / 60)} h ${mins % 60} min` : `${mins} min`],
+    ['Mapa favorito', fav && MAPS[fav[0]] ? MAPS[fav[0]].name : '—'], ['Monedas', '🪙 ' + coins],
+    ['Skins', `${SKINS.filter((_, i) => skinOpen(i, s)).length} / ${SKINS.length}`],
+  ];
+  const grid = $('profGrid'); grid.textContent = '';
+  for (const [k, v] of tiles) { const d = document.createElement('div'), b = document.createElement('b'), sp = document.createElement('span'); b.textContent = v; sp.textContent = k; d.append(b, sp); grid.appendChild(d); }
+  $('profName').textContent = `${getName()} · ${CHARS[myCh] ? CHARS[myCh].icon + ' ' + CHARS[myCh].name : ''} · ${SKINS[mySk].name}`;
+  $('profile').classList.remove('hidden');
+}
+
+/* ---------- Repetición de tu eliminación ---------- */
+const hist = [];
+let replay = null, wasAlive = false;
+function recordHist() {
+  if ((state !== 'play' && state !== 'over') || !ents) return;
+  const last = hist[hist.length - 1];
+  if (last && (time < last.t || last.ents !== ents)) hist.length = 0; // partida nueva
+  else if (last && time - last.t < 0.05) return;
+  hist.push({ t: time, ents, e: ents.map(e => [e.x, e.y, e.ang, time - e.lastShot, e.alive, e.down, e.air, e.hp]), b: bullets.map(b => [b.x, b.y, b.vx, b.vy, !!b.rk]) });
+  while (hist.length && time - hist[0].t > 5) hist.shift();
+}
+function replayCheck() {
+  if (!player || !ents) return;
+  if (wasAlive && !player.alive && state === 'over' && hist.length > 4 && hist[hist.length - 1].t - hist[0].t > 1.2 && player.killer && player.killer !== player && !replay) {
+    const to = hist[hist.length - 1].t;
+    replay = { t0: performance.now(), frames: hist.filter(h => h.t >= to - 4 && h.ents === ents), to, killer: player.killer.name };
+    replay.from = replay.frames.length ? replay.frames[0].t : to;
+    $('spec').style.visibility = 'hidden';
+  }
+  wasAlive = player.alive;
+}
+function stopReplay() { replay = null; $('spec').style.visibility = ''; }
+function replayBegin() {
+  const R = replay, F = R.frames;
+  if (F.length < 2) { stopReplay(); return false; }
+  // a velocidad normal, y el último segundo a cámara lenta
+  const el = (performance.now() - R.t0) / 1000, span = R.to - R.from, slow = Math.min(1, span);
+  const fast = span - slow, rt = el < fast ? R.from + el : R.from + fast + (el - fast) * 0.4;
+  if (rt > R.to + 0.4 || state === 'menu') { stopReplay(); return false; }
+  let i = 0;
+  while (i < F.length - 2 && F[i + 1].t < rt) i++;
+  const a = F[i], b = F[i + 1], k = clamp((rt - a.t) / ((b.t - a.t) || 1), 0, 1);
+  R.saved = ents.map(e => [e.x, e.y, e.ang, e.lastShot, e.alive, e.down, e.air, e.hp]);
+  R.savedB = bullets;
+  ents.forEach((e, j) => {
+    const A = a.e[j], B = b.e[j] || A;
+    if (!A) return;
+    e.x = lerp(A[0], B[0], k); e.y = lerp(A[1], B[1], k); e.ang = A[2] + angDiff(B[2], A[2]) * k;
+    e.lastShot = time - A[3]; e.alive = A[4]; e.down = A[5]; e.air = A[6]; e.hp = A[7];
+  });
+  bullets = a.b.map(q => ({ x: lerp(q[0], q[0] + q[2] * (b.t - a.t), k), y: lerp(q[1], q[1] + q[3] * (b.t - a.t), k), vx: q[2], vy: q[3], rk: q[4], life: 1 }));
+  return true;
+}
+function replayEnd() {
+  const R = replay;
+  if (!R || !R.saved) return;
+  ents.forEach((e, j) => { const S = R.saved[j]; if (!S) return; [e.x, e.y, e.ang, e.lastShot, e.alive, e.down, e.air, e.hp] = S; });
+  bullets = R.savedB; R.saved = null;
+}
+function drawReplayBanner() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(0, 0, VW, 46); ctx.fillRect(0, VH - 40, VW, 40);
+  const blink = Math.floor(performance.now() / 500) % 2;
+  txt(`${blink ? '🔴' : '⭕'} REPETICIÓN · te eliminó ${replay ? replay.killer : ''}`, VW / 2, 23, touchMode ? 15 : 18, '#ffffff', 'center', 800);
+  txt(touchMode ? 'Toca para saltar' : 'Pulsa cualquier tecla o haz clic para saltar', VW / 2, VH - 20, 13, '#c8cde8', 'center', 700);
+}
 
 /* ---------- Tutorial (primera partida en solitario) ---------- */
 let tut = null;
@@ -4666,6 +4841,8 @@ function resetRound() {
   time = 0; dmgDealt = 0; spectate = null; hitMarker = killMarker = hurtFlash = 0;
   specMode = false; specLabel = ''; resToken++; $('spec').classList.add('hidden');
   roundStats = null; emoOpen = false; roundCoins = 0;
+  if (typeof stopReplay === 'function' && replay) stopReplay();
+  hist.length = 0; wasAlive = false;
   mouse.down = mouse.pressed = false; showMap = false;
   touch.move = touch.aim = null;
   for (const k in keys) keys[k] = false;
@@ -4713,8 +4890,18 @@ function saveRoundStats(win, place) {
     const s = loadStats(), before = SKINS.map((_, i) => skinOpen(i, s));
     // monedas: por jugar, por cada baja, por buen puesto y por ganar
     let earn = 0;
-    if (!r.saved) { s.games++; s.kills += player.kills; earn += 10 + player.kills * 15 + (place > 0 && place <= 10 ? 10 : 0) + (place > 0 && place <= 3 ? 20 : 0); }
-    if (win && !r.win) { s.wins++; earn += 60; }
+    if (!r.saved) {
+      s.games++; s.kills += player.kills; earn += 10 + player.kills * 15 + (place > 0 && place <= 10 ? 10 : 0) + (place > 0 && place <= 3 ? 20 : 0);
+      s.dmg = (s.dmg || 0) + Math.round(dmgDealt); s.time = (s.time || 0) + Math.round(time); s.bestKills = Math.max(s.bestKills || 0, player.kills);
+      if (place > 0 && place <= 5) s.top5 = (s.top5 || 0) + 1;
+      s.maps = s.maps || {}; s.maps[mapKey] = (s.maps[mapKey] || 0) + 1;
+      misAdd('games', 1); misAdd('kills', player.kills); misAdd('dmg', Math.round(dmgDealt));
+      if (place > 0 && place <= 5) misAdd('top5', 1);
+      if (TH.night) misAdd('night', 1);
+      if (teamsOn()) misAdd('team', 1);
+      if (net.role !== 'solo') misAdd('friends', 1);
+    }
+    if (win && !r.win) { s.wins++; earn += 60; misAdd('wins', 1); }
     if (earn) { coins += earn; roundCoins += earn; saveWallet(); }
     if (place > 0) s.best = s.best ? Math.min(s.best, place) : place;
     localStorage.setItem('zf-stats', JSON.stringify(s));
@@ -5037,7 +5224,9 @@ function setupHostConn(conn) {
       conn.pav = cleanAv(m.av);
       conn.pch = m.ch >= 0 && m.ch < CHARS.length ? m.ch | 0 : 0;
       conn.psk = m.sk >= 0 && m.sk < SKINS.length ? m.sk | 0 : 0;
+      conn.rk = typeof m.rk === 'string' ? m.rk.slice(0, 16) : '';
       hostLobbyUpdate();
+      if ((state === 'play' || state === 'over') && conn.rk && hostRejoin(conn)) return;
       if (net.boardRows.length) { try { netSend(conn, { t: 'board', rows: net.boardRows }); } catch (e) {} }
       if (state === 'play' || state === 'over') { try { netSend(conn, { t: 'wait' }); } catch (e) {} }
     } else if (m.t === 'in' && conn.ent && ents.includes(conn.ent)) hostApplyInput(conn.ent, m);
@@ -5050,8 +5239,31 @@ function hostDropConn(conn) {
   if (i < 0) return;
   net.conns.splice(i, 1);
   const e = conn.ent;
-  if (e && e.alive && (state === 'play' || state === 'over') && ents.includes(e)) { e.disc = true; e.conn = null; kill(e, null); }
+  if (e && e.alive && (state === 'play' || state === 'over') && ents.includes(e) && e.conn === conn) {
+    // no se elimina enseguida: tiene 30 s para volver (se queda quieto mientras tanto)
+    e.conn = null; e.dropT = time || 0.01; e.inp.down = false; e.moving = false; e.sprint = false;
+    pushFeed(`📶 ${e.name} perdió la conexión…`, 5, false);
+  }
   hostLobbyUpdate();
+}
+// Mensaje de inicio de partida para un amigo (al empezar o al volver a entrar)
+function startMsgFor(c, map) {
+  const pl = { x0: r1(plane.x0), y0: r1(plane.y0), x1: r1(plane.x1), y1: r1(plane.y1), ang: r2(plane.ang), dur: plane.dur };
+  return { t: 'start', rd: net.round, map: map || packMap(), plane: pl, pt: r2(plane.t), names: ents.map(e => e.name), colors: ents.map(e => e.color),
+    humans: ents.filter(e => e.human).map(e => e.id), avs: ents.map(e => e.av || ''), chs: ents.map(e => e.ch), sks: ents.map(e => e.sk),
+    ts: teamSize, you: c.ent.id, diff: $('diff').value };
+}
+function hostRejoin(conn) {
+  const e = ents.find(o => o.human && o.rk === conn.rk && o.alive && !o.disc && o !== player);
+  if (!e) return false;
+  const old = e.conn;
+  if (old && old !== conn) { old.ent = null; const j = net.conns.indexOf(old); if (j >= 0) net.conns.splice(j, 1); try { old.close(); } catch (er) {} }
+  conn.ent = e; e.conn = conn; e.dropT = 0;
+  conn.ev = []; conn.lootSig = conn.vehSig = conn.boxSig = null; conn.lastZ = null; conn.lastFocus = undefined;
+  try { netSend(conn, startMsgFor(conn)); } catch (er) {}
+  pushFeed(`✅ ${e.name} volvió a la partida`, 5, false);
+  hostLobbyUpdate();
+  return true;
 }
 function hostLobbyUpdate() {
   net.lobby = [getName()].concat(net.conns.map(c => c.pname));
@@ -5064,7 +5276,7 @@ function hostLobbyUpdate() {
 function packMap() {
   return {
     t: mapKey,
-    c: circles.map(c => [r1(c.x), r1(c.y), r1(c.r), c.kind === 'rock' ? 0 : 1, c.kind === 'rock' ? c.pts.map(r1) : c.blobs.map(b => [r1(b.dx), r1(b.dy), r1(b.r)])]),
+    c: circles.filter(c => c.kind === 'rock' || c.kind === 'tree').map(c => [r1(c.x), r1(c.y), r1(c.r), c.kind === 'rock' ? 0 : 1, c.kind === 'rock' ? c.pts.map(r1) : c.blobs.map(b => [r1(b.dx), r1(b.dy), r1(b.r)])]),
     r: rects.map(q => [r1(q.x), r1(q.y), r1(q.w), r1(q.h), q.kind === 'wall' ? 0 : 1, q.id]),
     b: buildings.map(b => [b.x, b.y, b.w, b.h, b.roof, b.doors.map(d => [r1(d.x), r1(d.y), d.nx, d.ny])]),
     u: bushes.map(b => [r1(b.x), r1(b.y), r1(b.r), b.blobs.map(k => [r1(k.dx), r1(k.dy), r1(k.r)])]),
@@ -5099,7 +5311,7 @@ function hostStartGame() {
   net.round++;
   for (const c of conns) {
     if (!c.ent) continue;
-    try { netSend(c, { t: 'start', rd: net.round, map, plane: pl, names, colors, humans, avs, chs, sks, ts: teamSize, you: c.ent.id, diff: $('diff').value }); } catch (e) {}
+    try { netSend(c, startMsgFor(c, map)); } catch (e) {}
   }
   net.sendAcc = 0;
 }
@@ -5126,6 +5338,7 @@ function hostApplyInput(e, m) {
 }
 // Envía el estado de la partida a cada amigo (~20 veces por segundo)
 function hostTick(dt) {
+  if (state === 'play' || state === 'over') for (const e of ents) if (e.dropT && e.alive && time - e.dropT > 30) { e.dropT = 0; e.disc = true; kill(e, null); }
   net.sendAcc += dt;
   if (net.sendAcc < SNAP_DT) return;
   net.sendAcc = 0; net.tick++;
@@ -5192,7 +5405,9 @@ function joinRoom() {
   if (code.length !== 4) { menuMsg('Escribe el código de 4 letras de la sala.'); return; }
   leaveRoom(); menuMsg('');
   const peer = new Peer(undefined, peerOpts());
-  net.role = 'client'; net.peer = peer; net.code = code; net.lobby = [];
+  net.role = 'client'; net.peer = peer; net.code = code; net.lobby = []; net.reconT = 0;
+  try { net.rk = sessionStorage.getItem('zf-rk-' + code) || Math.random().toString(36).slice(2, 12); sessionStorage.setItem('zf-rk-' + code, net.rk); }
+  catch (e) { net.rk = Math.random().toString(36).slice(2, 12); }
   showLobby(); lobbyMsg('Conectando con la sala…');
   net.noRoom = false;
   peer.on('open', () => { if (net.peer === peer) connectToHost(peer, code, 1); });
@@ -5204,7 +5419,7 @@ function joinRoom() {
 }
 // Intenta conectar con el anfitrión; si no lo logra, reintenta y al final explica la causa
 const JOIN_TRIES = 3, JOIN_WAIT = 10000;
-function connectToHost(peer, code, attempt) {
+function connectToHost(peer, code, attempt, recon) {
   if (net.peer !== peer || net.role !== 'client') return;
   const conn = peer.connect(PEER_PREFIX + code, { reliable: true, serialization: 'json' });
   net.host = conn;
@@ -5215,6 +5430,7 @@ function connectToHost(peer, code, attempt) {
     const pc = conn.peerConnection;
     const answered = !!(pc && pc.remoteDescription), ice = pc ? pc.iceConnectionState : 'sin-conexion';
     try { conn.close(); } catch (e) {}
+    if (recon) { clientReconnect(); return; }
     if (attempt < JOIN_TRIES) {
       lobbyMsg(`Reintentando conexión (${attempt + 1}/${JOIN_TRIES})…`);
       setTimeout(() => connectToHost(peer, code, attempt + 1), 800);
@@ -5233,12 +5449,26 @@ function connectToHost(peer, code, attempt) {
   conn.on('open', () => {
     if (net.host !== conn || done) return;
     ok = true; clearTimeout(to); net.lastMsg = performance.now();
-    try { netSend(conn, { t: 'hello', name: getName(), av: myAv, ch: myCh, sk: mySk }); } catch (e) {}
+    try { netSend(conn, { t: 'hello', name: getName(), av: myAv, ch: myCh, sk: mySk, rk: net.rk }); } catch (e) {}
+    if (net.reconT) { net.reconT = 0; showAnnounce('✅ ¡Reconectado!', '#5dffb1'); }
     lobbyMsg('¡Conectado! Esperando a que el anfitrión empiece…');
   });
   conn.on('data', raw => { if (net.host === conn) { net.lastMsg = performance.now(); const m = netRecv(conn, raw); if (m) clientOnData(m); } });
-  conn.on('close', () => { if (net.host === conn) { if (ok) hostGone('El anfitrión cerró la sala.'); else fail(); } });
-  conn.on('error', () => { if (net.host === conn) { if (ok) hostGone('Se perdió la conexión con el anfitrión.'); else fail(); } });
+  const lost = msg => { if (state === 'play' || state === 'over') clientReconnect(); else hostGone(msg); };
+  conn.on('close', () => { if (net.host === conn) { if (ok) lost('El anfitrión cerró la sala.'); else fail(); } });
+  conn.on('error', () => { if (net.host === conn) { if (ok) lost('Se perdió la conexión con el anfitrión.'); else fail(); } });
+}
+// Conexión perdida a media partida: reintenta durante 30 s antes de rendirse
+function clientReconnect() {
+  if (net.role !== 'client') return;
+  const now = performance.now();
+  if (!net.reconT) { net.reconT = now; showAnnounce('📶 Conexión perdida · reconectando…', '#ffd34d'); }
+  if (now - net.reconT > 30000) { net.reconT = 0; hostGone('Se perdió la conexión con el anfitrión.'); return; }
+  const peer = net.peer;
+  if (!peer || peer.destroyed) { net.reconT = 0; hostGone('Se perdió la conexión con el anfitrión.'); return; }
+  if (net.host) { const old = net.host; net.host = null; try { old.close(); } catch (e) {} }
+  if (peer.disconnected) { try { peer.reconnect(); } catch (e) {} }
+  setTimeout(() => { if (net.role === 'client' && net.reconT && net.peer === peer) connectToHost(peer, net.code, JOIN_TRIES, true); }, 1500);
 }
 // Al volver al juego desde otra app (p. ej. WhatsApp), reconecta con el servidor de salas
 document.addEventListener('visibilitychange', () => {
@@ -5272,7 +5502,7 @@ function clientStart(m) {
   diff = DIFFS[m.diff] || DIFFS.normal;
   teamSize = [1, 2, 4].includes(m.ts) ? m.ts : 1;
   unpackMap(m.map); buildGround();
-  plane = { x0: m.plane.x0, y0: m.plane.y0, x1: m.plane.x1, y1: m.plane.y1, ang: m.plane.ang, dur: m.plane.dur, t: 0, x: m.plane.x0, y: m.plane.y0 };
+  plane = { x0: m.plane.x0, y0: m.plane.y0, x1: m.plane.x1, y1: m.plane.y1, ang: m.plane.ang, dur: m.plane.dur, t: +m.pt || 0, x: m.plane.x0, y: m.plane.y0 };
   ents = m.names.map((name, i) => {
     const e = makeEnt(i === m.you, name, m.colors[i]);
     e.id = i; e.human = m.humans.includes(i); e.team = Math.floor(i / teamSize);
@@ -5467,7 +5697,7 @@ function clientUpdate(dt) {
   for (const n of nades) n.age += dt;
   for (const d of drops) d.t -= dt;
   updateFx(dt);
-  if (performance.now() - net.lastMsg > 8000) hostGone('Se perdió la conexión con el anfitrión.');
+  if (performance.now() - net.lastMsg > 8000 && !net.reconT) clientReconnect();
 }
 function clientSendInput(dt) {
   net.inAcc += dt;
@@ -5487,6 +5717,7 @@ function clientSendInput(dt) {
 /* ---------- Controles ---------- */
 const canAct = () => state === 'play' && !paused && player.alive;
 addEventListener('keydown', e => {
+  if (replay && state !== 'menu') { stopReplay(); e.preventDefault(); return; }
   const tag = e.target && e.target.tagName;
   if (tag === 'INPUT' || tag === 'SELECT') { if (e.key === 'Enter' && e.target.id === 'code') joinRoom(); return; }
   if (e.code === 'Tab') { e.preventDefault(); if (state !== 'menu') showMap = true; return; }
@@ -5542,6 +5773,7 @@ function pressButton(id) {
   }
 }
 cv.addEventListener('pointerdown', e => {
+  if (replay) { stopReplay(); e.preventDefault(); return; }
   if (e.pointerType !== 'touch') return;
   e.preventDefault();
   lastTouchT = performance.now();
@@ -5594,6 +5826,7 @@ const fromTouch = () => performance.now() - lastTouchT < 1000;
 
 addEventListener('mousemove', e => { if (fromTouch()) return; mouse.x = e.clientX; mouse.y = e.clientY; });
 cv.addEventListener('mousedown', e => {
+  if (replay) { stopReplay(); return; }
   if (!canAct() || fromTouch()) return;
   if (showMap) { if (e.button === 0) bigMapPing(e.clientX, e.clientY); return; }
   if (player.air === 'plane') { act('jump'); return; }
@@ -5745,6 +5978,10 @@ function openSettings() {
   $('settings').classList.remove('hidden');
 }
 $('setBtn').onclick = openSettings;
+$('misBtn').onclick = openMissions;
+$('profBtn').onclick = openProfile;
+$('misOk').onclick = () => $('missions').classList.add('hidden');
+$('profOk').onclick = () => $('profile').classList.add('hidden');
 $('pauseSet').onclick = openSettings;
 $('setOk').onclick = () => $('settings').classList.add('hidden');
 $('psz').oninput = () => { PS = +$('psz').value; AIM_H = 23 * PS; saveSet('zf-psz', PS); };
@@ -5785,6 +6022,7 @@ function frame(t) {
   if (live && net.role === 'host') hostTick(dt);
   if (specMode) specTick();
   tutTick();
+  if (live) { recordHist(); replayCheck(); }
   render(dt);
   updateBoxUI();
   requestAnimationFrame(frame);
