@@ -101,6 +101,20 @@
   .av-btn img[hidden], .av-btn span[hidden], .av-del[hidden] { display: none; }
   .av-del { padding: 6px 11px; font-size: .9rem; }
   .plist li { display: flex; align-items: center; gap: 10px; }
+  .tag { margin-left: auto; font-size: .75rem; font-weight: 700; color: #5dffb1; background: rgba(93,255,177,.12);
+    border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+  .board { margin: 0 auto 16px; text-align: left; max-width: 400px; }
+  .board.hidden { display: none; }
+  .board .bt { font-weight: 800; text-align: center; margin-bottom: 8px; color: var(--accent); }
+  .brow { display: flex; align-items: center; gap: 8px; background: #1b1f3b; border-radius: 8px; padding: 5px 10px; margin-bottom: 5px; font-size: .9rem; }
+  .brow .pos { width: 1.5em; text-align: center; color: var(--accent); font-weight: 800; flex: none; }
+  .brow .av { width: 24px; height: 24px; }
+  .brow b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .brow .st { color: var(--muted); white-space: nowrap; font-size: .8rem; }
+  .vib { display: none; margin: -6px auto 14px; color: var(--muted); font-size: .9rem; gap: 6px; align-items: center; justify-content: center; }
+  body.touch .vib.touch-only.can { display: flex !important; }
+  body.touch .vib.touch-only:not(.can) { display: none !important; }
+  select:disabled { opacity: .7; }
 </style>
 </head>
 <body>
@@ -124,6 +138,7 @@
       <kbd>🔄 ➕ 💣</kbd><span>Recargar · curarte · granada</span>
       <kbd>Armas</kbd><span>Toca la casilla para cambiar</span>
       <kbd>Minimapa</kbd><span>Tócalo para ver el mapa grande</span>
+      <kbd>😀</kbd><span>Reacciones para tus amigos</span>
     </div>
     <div class="controls desk-only">
       <kbd>Espacio</kbd><span>Saltar del avión</span>
@@ -135,6 +150,7 @@
       <kbd>1 / 2 · rueda</kbd><span>Cambiar de arma</span>
       <kbd>Q</kbd><span>Usar botiquín</span>
       <kbd>G · clic der.</kbd><span>Lanzar granada 💣</span>
+      <kbd>5 · 6 · 7 · 8</kbd><span>Reacciones 👋 😂 🔥 🆘</span>
       <kbd>M</kbd><span>Silenciar</span>
       <kbd>Esc</kbd><span>Pausa</span>
     </div>
@@ -145,7 +161,14 @@
         <option value="normal" selected>Normal (25 bots)</option>
         <option value="dificil">Difícil (30 bots)</option>
       </select>
+      <label for="mode">Modo:</label>
+      <select id="mode">
+        <option value="1">Individual</option>
+        <option value="2">Dúos</option>
+        <option value="4">Escuadras de 4</option>
+      </select>
     </div>
+    <label class="vib touch-only" id="vibRow"><input type="checkbox" id="vib" checked> 📳 Vibración</label>
     <button id="play">Jugar solo</button>
     <div class="mp">
       <div class="mp-title">👥 Jugar con amigos</div>
@@ -171,6 +194,7 @@
       <div><b id="resTime"></b><span>Tiempo</span></div>
       <div><b id="resDmg"></b><span>Daño causado</span></div>
     </div>
+    <div class="board hidden" id="board"></div>
     <div class="row" style="margin:0">
       <button id="again">Jugar otra vez</button>
       <button class="sec" id="toMenu">Menú</button>
@@ -185,7 +209,16 @@
     <p style="margin:0">Código de la sala</p>
     <div class="code" id="lobbyCode">····</div>
     <p id="lobbyHint"></p>
+    <div class="row" style="margin:0 0 12px">
+      <label for="lobbyMode">Modo:</label>
+      <select id="lobbyMode">
+        <option value="1">Individual</option>
+        <option value="2">Dúos</option>
+        <option value="4">Escuadras de 4</option>
+      </select>
+    </div>
     <ul class="plist" id="lobbyList"></ul>
+    <div class="board hidden" id="lobbyBoard"></div>
     <p class="stats" id="lobbyMsg" style="margin:0 0 14px"></p>
     <div class="row" style="margin:0">
       <button id="lobbyStart">Empezar</button>
@@ -290,7 +323,8 @@ const GUNS = Object.keys(WEAPONS), KINDS = ['gun', 'med', 'armor', 'nade'], AIRS
 const AIR = { plane: 0, glide: 1, ground: 2 };
 const r0 = v => Math.round(v), r1 = v => Math.round(v * 10) / 10, r2 = v => Math.round(v * 100) / 100;
 // Estado del multijugador: 'solo' | 'host' (anfitrión, simula todo) | 'client' (envía controles, recibe el estado)
-const net = { role: 'solo', peer: null, conns: [], host: null, code: '', myId: 0, sendAcc: 0, inAcc: 0, actions: [], bev: [], lastMsg: 0, lobby: [], round: 0 };
+const net = { role: 'solo', peer: null, conns: [], host: null, code: '', myId: 0, sendAcc: 0, inAcc: 0, actions: [], bev: [], lastMsg: 0, lobby: [], round: 0,
+  lobbyAv: [], lobbyTs: 1, board: {}, boardRows: [], tick: 0 };
 const PEER_PREFIX = 'zonafinal-v2-', CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ', MAX_PLAYERS = 8;
 
 const PHASES = [
@@ -310,6 +344,13 @@ let time = 0, state = 'menu', paused = false, diff = DIFFS.normal, showMap = fal
 let cam = { x: WORLD / 2, y: WORLD / 2, z: 0.7 }, hitMarker = 0, killMarker = 0, hurtFlash = 0;
 let spectate = null, totalPlayers = 0, dmgDealt = 0, lastCursor = '';
 let specMode = false, specLabel = '', resToken = 0;
+// Equipos: teamSize 1 = todos contra todos, 2 = dúos, 4 = escuadras. Cada jugador tiene e.team.
+let teamSize = 1, roundDone = true, roundStats = null, emoOpen = false;
+const teamsOn = () => teamSize > 1;
+const EMOS = ['👋', '😂', '🔥', '🆘'];
+let vibOn = true;
+try { vibOn = localStorage.getItem('zf-vib') !== '0'; } catch (e) {}
+function buzz(p) { if (!vibOn || !navigator.vibrate) return; try { navigator.vibrate(p); } catch (e) {} }
 const keys = {}, mouse = { x: 0, y: 0, down: false, pressed: false };
 // Controles táctiles: joysticks flotantes (izquierda = mover, derecha = apuntar/disparar)
 const STICK_R = 60, BTN_R = 28;
@@ -673,6 +714,7 @@ function makeEnt(isPlayer, name, color) {
     inp: { down: false, pressed: false }, tx: null, ty: null, ta: 0,
     target: null, fireDelay: 0, think: Math.random() * 0.3, wp: null, aimErr: 0,
     strafe: 1, strafeT: 0, stuckX: 0, stuckY: 0, stuckT: 0, nades: 0, nadeT: -9,
+    team: 0, key: '', emo: -1, emoT: -9, watch: -1,
   };
 }
 function initPlane() {
@@ -701,6 +743,7 @@ function spawnEnts(humans = [{ name: 'Tú' }]) {
       ? makeEnt(i === 0, h.name, HUMAN_COLORS[i % HUMAN_COLORS.length])
       : makeEnt(false, names[i % names.length], `hsl(${Math.floor(rand(0, 360))},55%,58%)`);
     e.id = i; e.human = !!h; e.conn = (h && h.conn) || null; e.av = (h && cleanAv(h.av)) || '';
+    e.team = Math.floor(i / teamSize); e.key = h ? (h.conn ? h.conn.peer : 'h') : '';
     if (h && h.conn) h.conn.ent = e;
     if (!h) {
       e.land = pickLanding();
@@ -969,6 +1012,7 @@ function tryFire(e) {
 }
 function damage(e, dmg, src, weapon) {
   if (!e.alive || e.air !== 'ground') return;
+  if (src && src !== e && src.team === e.team) return; // sin fuego amigo
   if (src && !src.human && !e.human) dmg *= 0.6; // peleas entre bots más largas: llegan más rivales al final
   let d = dmg;
   const hadArmor = e.armor > 0;
@@ -988,7 +1032,13 @@ function kill(e, src, weapon) {
   if (!e.alive) return;
   e.alive = false; e.hp = 0; e.killer = src;
   const aliveNow = ents.filter(o => o.alive).length;
-  e.place = aliveNow + 1;
+  const teamLeft = ents.some(o => o.alive && o.team === e.team), teamsNow = aliveTeams();
+  // puesto: se decide cuando cae el último del equipo (en individual, al morir)
+  e.place = teamLeft ? 0 : teamsNow + 1;
+  if (!teamLeft) for (const m of ents) if (m !== e && m.team === e.team) {
+    m.place = e.place;
+    if (m.human && m !== player) toHuman(m, { k: 'pl', place: e.place });
+  }
   if (src && src !== e) src.kills++;
   const text = e.disc ? `${e.name} se desconectó`
     : src === e ? (e === player && net.role === 'solo' ? 'Te alcanzó tu propia granada' : `${e.name} cayó en su propia granada`)
@@ -1006,16 +1056,34 @@ function kill(e, src, weapon) {
     src.streak = time - src.lastKillT < 5 ? src.streak + 1 : 1; src.lastKillT = time;
     if (src.streak >= 2) toHuman(src, { k: 'a', text: src.streak === 2 ? '¡Doble baja!' : src.streak === 3 ? '¡Triple baja!' : '¡Imparable!', c: '#ff7b7b' });
   }
+  if (src && !src.human && src !== e && Math.random() < 0.12) setEmo(src, 1); // a veces los bots se ríen
   if (e.human) {
-    if (e === player) { spectate = src && src !== e ? src : null; endGame(false); }
+    if (e === player) endGame(false);
     else toHuman(e, { k: 'dead', place: e.place, killer: src ? src.id : -1 });
   }
-  if (aliveNow === 1) {
+  if (teamsNow <= 1) {
     const w = ents.find(o => o.alive);
-    if (w && w.human) { if (w === player) endGame(true); else toHuman(w, { k: 'win' }); }
-  } else if (ents.some(o => o.alive && o.human) && [10, 5, 3, 2].includes(aliveNow) && !(src && src.human && src.streak >= 2)) {
-    announceAll(`Quedan ${aliveNow} jugadores`);
+    finishMatch(w ? w.team : null);
+  } else if (ents.some(o => o.alive && o.human)) {
+    if (!teamsOn() && [10, 5, 3, 2].includes(aliveNow) && !(src && src.human && src.streak >= 2)) announceAll(`Quedan ${aliveNow} jugadores`);
+    else if (teamsOn() && !teamLeft && [5, 3, 2].includes(teamsNow)) announceAll(`Quedan ${teamsNow} equipos`);
   }
+}
+function aliveTeams() { const s = new Set(); for (const o of ents) if (o.alive) s.add(o.team); return s.size; }
+// Fin de partida (lo decide el anfitrión o el modo solo): gana el equipo wt (null = nadie)
+function finishMatch(wt) {
+  if (net.role === 'host') recordBoard(wt);
+  if (wt == null) return;
+  for (const h of ents) {
+    if (!h.human || h.team !== wt) continue;
+    if (h === player) teamWon(); else toHuman(h, { k: 'win' });
+  }
+}
+// Tu equipo ganó: estés vivo, observando o ya viendo los resultados
+function teamWon() {
+  if (state === 'play') endGame(true);
+  else if (specMode) finishSpectate(ents.find(o => o.alive) || null, 1800, true);
+  else if (state === 'over') showResult(true, ents.find(o => o.alive) || null, 200);
 }
 
 /* ---------- Movimiento ---------- */
@@ -1116,7 +1184,7 @@ function applyTouchAim() {
   const g = p.guns[p.slot], range = g ? WEAPONS[g.type].range : 600;
   let best = null, bd = 0.26;
   for (const o of ents) {
-    if (o === p || !o.alive || !o.seen || o.air !== 'ground') continue;
+    if (o === p || !o.alive || !o.seen || o.air !== 'ground' || o.team === p.team) continue;
     if (dist(p.x, p.y, o.x, o.y) > range) continue;
     const da = Math.abs(angDiff(Math.atan2(o.y - p.y, o.x - p.x), ang));
     if (da < bd) { bd = da; best = o; }
@@ -1158,6 +1226,7 @@ function act(a, x, y) {
 }
 function doAct(e, a, x, y) {
   if (a === 'jump') { jump(e); return; }
+  if (typeof a === 'string' && /^emo[0-9]$/.test(a)) { setEmo(e, +a[3]); return; }
   if (!e.alive || e.air !== 'ground') return;
   if (a === 'pickup') pickupFor(e);
   else if (a === 'reload') startReload(e);
@@ -1165,6 +1234,32 @@ function doAct(e, a, x, y) {
   else if (a === 'nade') throwNade(e, x, y);
   else if (a === 's0') swapSlotFor(e, 0);
   else if (a === 's1') swapSlotFor(e, 1);
+}
+// Reacciones rápidas (emojis sobre el personaje, las ven todos)
+function setEmo(e, i) {
+  if (!e.alive || !(i >= 0 && i < EMOS.length) || time - e.emoT < 1.2) return;
+  e.emo = i; e.emoT = time;
+  bcast({ k: 'em', id: e.id, i });
+  emoSound(e);
+}
+function emoSound(e) {
+  const [v, pan] = spatial(e.x, e.y, 900);
+  if (v > 0.05) { tone(740, 0.07, 'sine', 0.07 * v); tone(1100, 0.09, 'sine', 0.06 * v, 0, 0.07); }
+}
+function drawEmo(e) {
+  const k = time - e.emoT;
+  if (e.emo < 0 || k < 0 || k > 2.6) return;
+  const s = k < 0.15 ? 0.5 + k / 0.3 : 1, a = k > 2.2 ? (2.6 - k) / 0.4 : 1;
+  const x = e.x, y = e.y - e.r - 30 - Math.min(k, 0.3) * 20;
+  ctx.save(); ctx.globalAlpha = Math.max(0, a); ctx.translate(x, y); ctx.scale(s, s);
+  ctx.beginPath(); ctx.moveTo(-6, 14); ctx.lineTo(0, 24); ctx.lineTo(6, 14); ctx.closePath();
+  ctx.fillStyle = 'rgba(255,255,255,.95)'; ctx.fill();
+  ctx.beginPath(); ctx.arc(0, 0, 19, 0, Math.PI * 2); ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.stroke();
+  ctx.font = '22px system-ui, "Segoe UI Emoji", "Apple Color Emoji", sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#000';
+  ctx.fillText(EMOS[e.emo], 0, 1);
+  ctx.restore();
 }
 function startHeal(e) {
   if (e.meds > 0 && e.hp < 100 && e.healT <= 0) { e.healT = HEAL_TIME; e.reloadT = 0; }
@@ -1242,7 +1337,7 @@ function updateBot(e, dt) {
     e.think = rand(0.18, 0.32);
     let best = null, bd = time < 60 ? 520 : 680; // al principio se centran más en conseguir botín
     for (const o of ents) {
-      if (o === e || !o.alive || o.air !== 'ground') continue;
+      if (o === e || !o.alive || o.air !== 'ground' || o.team === e.team) continue;
       const d = dist(e.x, e.y, o.x, o.y);
       if (d >= bd || (!o.human && d > 420 && e.target !== o) || !canSee(e, o, d)) continue;
       best = o; bd = d;
@@ -1344,7 +1439,7 @@ function updateBullets(dt) {
         break;
       }
       for (const e of ents) {
-        if (!e.alive || e === b.owner || e.air !== 'ground') continue;
+        if (!e.alive || e === b.owner || e.air !== 'ground' || (b.owner && e.team === b.owner.team)) continue;
         const dx = e.x - b.x, dy = e.y - b.y;
         if (dx * dx + dy * dy < e.r * e.r) { damage(e, b.dmg, b.owner, b.weapon); remove = true; break; }
       }
@@ -1512,12 +1607,18 @@ function drawEnt(e) {
     ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 9, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - e.healT / HEAL_TIME));
     ctx.strokeStyle = '#68d391'; ctx.lineWidth = 3; ctx.stroke();
   }
-  if (!e.isPlayer && time - e.lastHurt < 3) {
+  const mate = teamsOn() && !e.isPlayer && player && e.team === player.team;
+  if (mate) { // compañero de equipo: aro verde
+    ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 7, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(93,255,177,.85)'; ctx.lineWidth = 2; ctx.setLineDash([5, 4]); ctx.stroke(); ctx.setLineDash([]);
+  }
+  if (!e.isPlayer && (time - e.lastHurt < 3 || mate)) {
     ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(e.x - 18, e.y - e.r - 14, 36, 5);
     ctx.fillStyle = e.hp > 50 ? '#68d391' : e.hp > 25 ? '#f6ad55' : '#fc8181';
     ctx.fillRect(e.x - 18, e.y - e.r - 14, 36 * Math.max(0, e.hp) / 100, 5);
   }
-  if (e.human && !e.isPlayer) txt(e.name, e.x, e.y - e.r - 24, 12, e.color, 'center', 800);
+  if (mate) txt(e.name, e.x, e.y - e.r - 24, 12, '#5dffb1', 'center', 800);
+  else if (e.human && !e.isPlayer) txt(e.name, e.x, e.y - e.r - 24, 12, e.color, 'center', 800);
 }
 // Cuerpo con foto de perfil: la foto recortada en círculo y un aro del color del jugador
 function drawAvatarBody(e, x, y, im) {
@@ -1552,6 +1653,7 @@ function drawGlider(e) {
   }
   ctx.restore();
   if (e.isPlayer) txt('Tú', e.x, e.y - h - 80 * s, 14, '#ffd34d', 'center', 800);
+  else if (teamsOn() && player && e.team === player.team) txt('🤝 ' + e.name, e.x, e.y - h - 80 * s, 13, '#5dffb1', 'center', 800);
   else if (e.human) txt(e.name, e.x, e.y - h - 80 * s, 13, e.color, 'center', 800);
 }
 function drawPlane() {
@@ -1611,7 +1713,7 @@ function render(dt) {
 
   // jugadores en el suelo
   for (const e of ents) {
-    e.seen = e.alive && e.air === 'ground' && (!fogOn || e === player || canSee(player, e));
+    e.seen = e.alive && e.air === 'ground' && (!fogOn || e === player || e.team === player.team || canSee(player, e));
     if (e.seen && vis(e.x, e.y, 60)) drawEnt(e);
   }
 
@@ -1777,6 +1879,12 @@ function render(dt) {
     for (const e of ents) if (e.alive && e.air === 'glide' && vis(e.x, e.y, 250)) drawGlider(e);
     drawPlane();
   }
+  // reacciones (encima de todo, solo de quien puedes ver)
+  if (state !== 'menu') for (const e of ents) {
+    if (!e.alive || time - e.emoT > 2.6 || !vis(e.x, e.y, 80)) continue;
+    if (e.air === 'ground' && !e.seen) continue;
+    drawEmo(e);
+  }
   // números de daño
   for (const fl of floats) {
     ctx.globalAlpha = Math.min(1, fl.t * 2);
@@ -1816,6 +1924,12 @@ function drawMap(x, y, m, big) {
     ctx.fillStyle = '#ff4d4d'; ctx.fillRect(x + d.x * s - 4, y + d.y * s - 4, 8, 8);
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(x + d.x * s - 4, y + d.y * s - 4, 8, 8);
   }
+  if (teamsOn() && state !== 'menu') for (const o of ents) { // compañeros vivos
+    if (o === player || !o.alive || o.team !== player.team || o.air === 'plane') continue;
+    ctx.beginPath(); ctx.arc(x + o.x * s, y + o.y * s, big ? 6 : 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#5dffb1'; ctx.fill(); ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; ctx.stroke();
+    if (big) txt(o.name, x + o.x * s, y + o.y * s - 14, 12, '#5dffb1', 'center', 800);
+  }
   const f = player.alive ? (player.air === 'plane' ? null : player) : spectate && spectate.alive ? spectate : null;
   if (f) {
     const px = x + f.x * s, py = y + f.y * s;
@@ -1848,13 +1962,15 @@ function drawHUD() {
   const alive = ents.filter(e => e.alive).length;
 
   // panel de estado
+  const tm = teamsOn(), teamsLeft = tm ? aliveTeams() : 0;
   if (touchMode) {
-    rr(54, 12, 150, 30, 15); ctx.fillStyle = 'rgba(10,12,28,.7)'; ctx.fill();
-    txt(`👥 ${alive}   🎯 ${p.kills}`, 68, 27, 14);
-    if (muted) txt('🔇', 214, 27, 14);
+    const pw = tm ? 196 : 150;
+    rr(54, 12, pw, 30, 15); ctx.fillStyle = 'rgba(10,12,28,.7)'; ctx.fill();
+    txt(tm ? `👥 ${alive}  🚩 ${teamsLeft}  🎯 ${p.kills}` : `👥 ${alive}   🎯 ${p.kills}`, 68, 27, 14);
+    if (muted) txt('🔇', 64 + pw, 27, 14);
   } else {
     rr(12, 12, 212, 112, 10); ctx.fillStyle = 'rgba(10,12,28,.7)'; ctx.fill();
-    txt(`👥 Vivos: ${alive} / ${totalPlayers}`, 24, 32, 15);
+    txt(tm ? `👥 Vivos: ${alive} · 🚩 Equipos: ${teamsLeft}` : `👥 Vivos: ${alive} / ${totalPlayers}`, 24, 32, tm ? 14 : 15);
     txt(`🎯 Bajas: ${p.kills}`, 24, 55, 15);
     txt(`➕ Botiquines: ${p.meds}  [Q]`, 24, 78, 15);
     txt(`💣 Granadas: ${p.nades}  [G]`, 24, 101, 15);
@@ -1871,11 +1987,30 @@ function drawHUD() {
   txt(zt, VW / 2, 27, touchMode ? 13 : 14, '#fff', 'center');
   txt(`Fase ${Math.min(zone.phase + 1, PHASES.length)} de ${PHASES.length}`, VW / 2, 54, 12, '#c8c8e8', 'center');
 
+  // compañeros de equipo: nombre, foto y vida
+  let matesH = 0;
+  if (tm) {
+    let my = touchMode ? 50 : muted ? 158 : 132;
+    for (const o of ents) {
+      if (o === p || o.team !== p.team) continue;
+      rr(12, my, 168, 22, 7); ctx.fillStyle = 'rgba(10,12,28,.7)'; ctx.fill();
+      ctx.save(); ctx.beginPath(); ctx.arc(24, my + 11, 8, 0, Math.PI * 2); ctx.fillStyle = o.color; ctx.fill();
+      const im = avImg(o.av); if (im) { ctx.clip(); ctx.drawImage(im, 16, my + 3, 16, 16); }
+      ctx.restore();
+      txt(o.name, 37, my + 11, 11, o.alive ? '#5dffb1' : '#7d84ad', 'left', 700);
+      if (o.alive) {
+        ctx.fillStyle = '#2a2f5a'; ctx.fillRect(112, my + 8, 60, 6);
+        ctx.fillStyle = o.hp > 50 ? '#48bb78' : o.hp > 25 ? '#ed8936' : '#f56565'; ctx.fillRect(112, my + 8, 60 * Math.max(0, o.hp) / 100, 6);
+      } else txt('💀', 142, my + 11, 12, '#fff', 'center');
+      my += 26; matesH += 26;
+    }
+  }
+
   // minimapa + noticias
   const mm = miniSize();
   drawMap(VW - mm - 12, 12, mm, false);
   uiRects.minimap = { x: VW - mm - 16, y: 8, w: mm + 8, h: mm + 8 };
-  let fy = touchMode ? 50 : mm + 24;
+  let fy = touchMode ? 50 + matesH : mm + 24;
   for (const f of touchMode ? feed.slice(0, 3) : feed) {
     ctx.globalAlpha = Math.min(1, f.t);
     const fs = touchMode ? 11 : 13;
@@ -2017,7 +2152,14 @@ function touchButtons() {
     { id: 'nade', x: VW - 52, y: base - 66, icon: '💣', n: player.nades },
     { id: 'heal', x: VW - 118, y: base - 33, icon: '➕', n: player.meds },
     { id: 'reload', x: VW - 52, y: base, icon: '🔄' },
+    { id: 'emo', x: VW - 184, y: base - 66, icon: '😀' },
   ];
+}
+// Abanico de reacciones que se abre al tocar 😀
+function emoButtons() {
+  const b = touchButtons()[3];
+  // cuadrícula 2×2 a la izquierda del botón, sin tapar el centro (donde está tu personaje)
+  return EMOS.map((icon, i) => ({ i, icon, x: b.x - 50 * (Math.floor(i / 2) + 1), y: b.y - 24 + (i % 2) * 48 }));
 }
 function drawStick(s, defX, defY, label, active) {
   const bx = s ? s.bx : defX, by = s ? s.by : defY;
@@ -2051,6 +2193,12 @@ function drawTouchUI() {
       txt(String(b.n), b.x + 20, b.y - 20, 12, '#1b1f3b', 'center', 800);
     }
   }
+  if (emoOpen) for (const b of emoButtons()) {
+    ctx.beginPath(); ctx.arc(b.x, b.y, 22, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,211,77,.9)'; ctx.lineWidth = 2; ctx.stroke();
+    txt(b.icon, b.x, b.y + 1, 21, '#000', 'center');
+  }
   if (player.reloadT > 0) {
     const b = touchButtons()[2], W = WEAPONS[player.guns[player.slot].type];
     ctx.beginPath(); ctx.arc(b.x, b.y, BTN_R + 4, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - player.reloadT / W.reload));
@@ -2078,6 +2226,7 @@ function resetRound() {
   shake = 0; announce = null; visPoly = null;
   time = 0; dmgDealt = 0; spectate = null; hitMarker = killMarker = hurtFlash = 0;
   specMode = false; specLabel = ''; resToken++; $('spec').classList.add('hidden');
+  roundStats = null; emoOpen = false;
   mouse.down = mouse.pressed = false; showMap = false;
   touch.move = touch.aim = null;
   for (const k in keys) keys[k] = false;
@@ -2097,6 +2246,7 @@ function enterPlay() {
 // humans: [{ name, conn? }] — el primero es el jugador local, el resto amigos conectados
 function startGame(humans) {
   diff = DIFFS[$('diff').value] || DIFFS.normal;
+  teamSize = [1, 2, 4].includes(+$('mode').value) ? +$('mode').value : 1;
   genMap(); rects.forEach((q, i) => { q.id = i; }); buildGround(); initPlane(); spawnEnts(humans); initZone();
   resetRound();
   enterPlay();
@@ -2105,28 +2255,37 @@ function newGame() { startGame([{ name: 'Tú', av: myAv }]); }
 function endGame(win) {
   if (state !== 'play') return;
   state = 'over';
-  const place = win ? 1 : player.place;
-  try {
-    const s = loadStats();
-    s.games++; if (win) s.wins++; s.kills += player.kills; s.best = s.best ? Math.min(s.best, place) : place;
-    localStorage.setItem('zf-stats', JSON.stringify(s));
-  } catch (e) {}
-  if (win) sfx.win(); else sfx.lose();
-  if (win) { showResult(true, null, 900); return; }
-  // Has muerto: modo espectador hasta que termine la partida (specTick decide cuándo acaba)
+  emoOpen = false;
+  if (win) { sfx.win(); buzz([60, 60, 60, 60, 200]); showResult(true, null, 900); return; }
+  sfx.lose(); buzz(300);
+  // Has muerto: modo espectador hasta que termine la partida (specTick decide cuándo acaba).
+  // Primero sigue a un compañero vivo; si no hay, a quien te eliminó.
   specMode = true; specLabel = '';
-  if (!spectate || !spectate.alive) spectate = specPick(null);
+  spectate = specPick(player);
   $('spec').classList.remove('hidden');
   specTick();
+}
+// Estadísticas del teléfono: se guardan una vez por partida (y se corrigen si luego gana tu equipo)
+function saveRoundStats(win, place) {
+  const r = roundStats || (roundStats = { saved: false, win: false });
+  try {
+    const s = loadStats();
+    if (!r.saved) { s.games++; s.kills += player.kills; }
+    if (win && !r.win) s.wins++;
+    if (place > 0) s.best = s.best ? Math.min(s.best, place) : place;
+    localStorage.setItem('zf-stats', JSON.stringify(s));
+  } catch (e) {}
+  r.saved = true; r.win = r.win || win;
 }
 /* ---------- Modo espectador ---------- */
 const specList = () => ents.filter(e => e.alive && e !== player && e.air !== 'plane');
 function specPick(prev) {
   const c = specList();
   if (!c.length) return null;
-  if (prev && prev.killer && prev.killer !== prev && c.includes(prev.killer)) return prev.killer;
+  const mates = c.filter(e => e.team === player.team);
+  if (!mates.length && prev && prev.killer && prev.killer !== prev && c.includes(prev.killer)) return prev.killer;
   const friends = c.filter(e => e.human);
-  const pool = friends.length ? friends : c;
+  const pool = mates.length ? mates : friends.length ? friends : c;
   let best = pool[0], bd = Infinity;
   for (const e of pool) { const d = dist(e.x, e.y, cam.x, cam.y); if (d < bd) { bd = d; best = e; } }
   return best;
@@ -2142,10 +2301,16 @@ function specCycle(dir) {
 function specTick() {
   if (!specMode || state !== 'over') return;
   const alive = ents.filter(e => e.alive);
-  if (alive.length <= 1) { finishSpectate(alive[0] || null, 2200); return; }
+  if (aliveTeams() <= 1) {
+    const w = alive.find(e => e.human) || alive[0] || null;
+    finishSpectate(w, 2200, !!w && w.team === player.team);
+    return;
+  }
   if (!spectate || !spectate.alive || spectate.air === 'plane') spectate = specPick(spectate);
-  const name = spectate ? spectate.name : '—';
-  const info = spectate ? `❤️ ${Math.ceil(Math.max(0, spectate.hp))} · 👥 ${alive.length} vivos` : `👥 ${alive.length} vivos`;
+  const mate = spectate && teamsOn() && spectate.team === player.team;
+  const name = spectate ? (mate ? '🤝 ' : '') + spectate.name : '—';
+  const count = teamsOn() ? `🚩 ${aliveTeams()} equipos` : `👥 ${alive.length} vivos`;
+  const info = spectate ? `❤️ ${Math.ceil(Math.max(0, spectate.hp))} · ${count}` : count;
   const label = name + '|' + info + '|' + (spectate ? spectate.id : -1);
   if (label !== specLabel) {
     specLabel = label; $('specName').textContent = `👁 ${name}`; $('specInfo').textContent = info;
@@ -2153,25 +2318,34 @@ function specTick() {
     if (src) { if (av.getAttribute('src') !== src) av.src = src; av.hidden = false; } else av.hidden = true;
   }
 }
-function finishSpectate(winner, delay) {
+function finishSpectate(winner, delay, win = false) {
   if (!specMode) return;
   specMode = false; showMap = false;
   $('spec').classList.add('hidden');
-  if (winner) { spectate = winner; if (winner !== player) pushFeed(`🏆 ${winner.name} ganó la partida`, 6, true); }
-  showResult(false, winner, delay);
+  if (winner) {
+    spectate = winner;
+    if (win) pushFeed('🏆 ¡Tu equipo ganó la partida!', 6, true);
+    else if (winner !== player) pushFeed(teamsOn() ? `🏆 Ganó el equipo de ${winner.name}` : `🏆 ${winner.name} ganó la partida`, 6, true);
+  }
+  if (win) { sfx.win(); buzz([60, 60, 60, 60, 200]); }
+  showResult(win, winner, delay);
 }
 function showResult(win, winner, delay) {
   const tok = ++resToken;
+  // si te saltaste el espectador y tu equipo aún vive, el puesto es provisional (el mejor posible)
+  const place = win ? 1 : player.place || aliveTeams();
+  saveRoundStats(win, place);
   setTimeout(() => {
     if (state !== 'over' || tok !== resToken) return;
-    const place = win ? 1 : player.place;
-    $('resTitle').textContent = win ? '🏆 ¡VICTORIA!' : '💀 Eliminado';
+    const tm = teamsOn();
+    $('resTitle').textContent = win ? (tm ? '🏆 ¡VICTORIA EN EQUIPO!' : '🏆 ¡VICTORIA!') : '💀 Eliminado';
     $('resTitle').className = 'big ' + (win ? 'win' : 'lose');
-    $('resSub').textContent = (win ? '¡Eres el último en pie!'
-      : player.killer === player ? 'Tu propia granada acabó contigo.'
-      : player.killer ? `Te eliminó ${player.killer.name}.` : 'La zona acabó contigo.')
-      + (!win && winner && winner !== player ? ` Ganó ${winner.name}.` : '');
-    $('resPlace').textContent = `#${place} de ${totalPlayers}`;
+    $('resSub').textContent = win
+      ? (!tm ? '¡Eres el último en pie!' : player.alive ? '¡Tu equipo es el último en pie!' : '¡Tu equipo ganó la partida!')
+      : (player.killer === player ? 'Tu propia granada acabó contigo.'
+        : player.killer ? `Te eliminó ${player.killer.name}.` : 'La zona acabó contigo.')
+        + (winner && winner !== player ? (tm ? ` Ganó el equipo de ${winner.name}.` : ` Ganó ${winner.name}.`) : '');
+    $('resPlace').textContent = tm ? `#${place} de ${Math.ceil(totalPlayers / teamSize)} equipos` : `#${place} de ${totalPlayers}`;
     $('resKills').textContent = player.kills;
     $('resTime').textContent = fmtTime(time);
     $('resDmg').textContent = Math.round(dmgDealt);
@@ -2290,23 +2464,65 @@ function showLobby() {
   $('lobbyTitle').textContent = host ? '👥 Tu sala' : '👥 Sala';
   $('lobbyStart').style.display = host ? '' : 'none';
   $('lobbyShare').style.display = host && net.code ? '' : 'none';
-  $('lobbyHint').textContent = host ? 'Pasa el código a tus amigos y vuelve aquí: deja el juego abierto en pantalla mientras entran. Cuando estén todos, pulsa Empezar. Los huecos se rellenan con bots.' : '';
+  $('lobbyMode').disabled = !host;
+  $('lobbyMode').value = host ? $('mode').value : String(net.lobbyTs || 1);
+  $('lobbyHint').textContent = host ?'Pasa el código a tus amigos y vuelve aquí: deja el juego abierto en pantalla mientras entran. Cuando estén todos, pulsa Empezar. Los huecos se rellenan con bots.' : '';
   renderLobby();
 }
 function renderLobby() {
   $('lobbyCode').textContent = net.code || '····';
   const ul = $('lobbyList');
   ul.innerHTML = '';
+  const ts = net.role === 'host' ? (+$('mode').value || 1) : (net.lobbyTs || 1);
   net.lobby.forEach((n, i) => {
     const li = document.createElement('li'), av = (net.lobbyAv || [])[i];
     if (av) { const im = document.createElement('img'); im.className = 'av'; im.alt = ''; im.src = av; li.appendChild(im); }
     li.appendChild(document.createTextNode((i === 0 ? '👑 ' : '🎮 ') + n));
+    if (ts > 1) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = `Equipo ${Math.floor(i / ts) + 1}`; li.appendChild(t); }
     ul.appendChild(li);
   });
+  renderBoard();
+}
+// Ranking de la sala: lo lleva el anfitrión y lo reparte a todos al final de cada partida
+function renderBoard() {
+  const rows = net.role === 'solo' ? [] : net.boardRows || [];
+  for (const id of ['board', 'lobbyBoard']) {
+    const box = $(id);
+    box.classList.toggle('hidden', !rows.length);
+    box.textContent = '';
+    if (!rows.length) continue;
+    const t = document.createElement('div'); t.className = 'bt'; t.textContent = '🏆 Ranking de la sala'; box.appendChild(t);
+    rows.forEach((r, i) => {
+      const row = document.createElement('div'); row.className = 'brow';
+      const pos = document.createElement('span'); pos.className = 'pos'; pos.textContent = i === 0 && r.w > 0 ? '👑' : String(i + 1); row.appendChild(pos);
+      if (r.av) { const im = document.createElement('img'); im.className = 'av'; im.alt = ''; im.src = r.av; row.appendChild(im); }
+      const nm = document.createElement('b'); nm.textContent = r.n; row.appendChild(nm);
+      const st = document.createElement('span'); st.className = 'st';
+      st.textContent = `🏆 ${r.w} · 🎯 ${r.k} · 🎮 ${r.g}` + (r.b ? ` · #${r.b}` : ''); row.appendChild(st);
+      box.appendChild(row);
+    });
+  }
+}
+function recordBoard(wt) {
+  if (net.role !== 'host' || roundDone || !ents) return;
+  roundDone = true;
+  for (const e of ents) {
+    if (!e.human || !e.key) continue;
+    const r = net.board[e.key] || (net.board[e.key] = { n: e.name, av: '', w: 0, k: 0, g: 0, b: 0 });
+    const won = wt != null && e.team === wt, pl = won ? 1 : e.place;
+    r.n = e.name; r.av = e.av || ''; r.g++; r.k += e.kills;
+    if (won) r.w++;
+    if (pl > 0) r.b = r.b ? Math.min(r.b, pl) : pl;
+  }
+  net.boardRows = Object.values(net.board).sort((a, b) => b.w - a.w || b.k - a.k || a.b - b.b)
+    .map(r => ({ n: r.n, av: r.av, w: r.w, k: r.k, g: r.g, b: r.b }));
+  renderBoard();
+  for (const c of net.conns) { try { netSend(c, { t: 'board', rows: net.boardRows }); } catch (e) {} }
 }
 function leaveRoom() {
   const p = net.peer, wasClient = net.role === 'client';
   net.role = 'solo'; net.peer = null; net.conns = []; net.host = null; net.code = ''; net.lobby = []; net.lobbyAv = []; net.bev = []; net.actions = [];
+  net.board = {}; net.boardRows = []; net.lobbyTs = 1; roundDone = true;
   if (p) { try { p.destroy(); } catch (e) {} }
   $('lobby').classList.add('hidden');
   // la copia del invitado no puede seguir la partida sola: vuelve al menú
@@ -2338,7 +2554,7 @@ function createRoom(tries = 0) {
 }
 // PeerJS corta la conexión si un mensaje JSON pasa de ~16 KB (el inicio de partida lleva el mapa entero),
 // así que los mensajes grandes se envían en trozos y se vuelven a juntar al llegar (el canal es ordenado y fiable).
-const NET_CHUNK = 7000;
+const NET_CHUNK = 7000, SNAP_DT = 1 / 15; // 15 actualizaciones por segundo (antes 20)
 let netSeq = 0;
 function netSend(conn, msg) {
   const s = JSON.stringify(msg);
@@ -2370,6 +2586,7 @@ function setupHostConn(conn) {
       conn.pname = String(m.name || 'Jugador').slice(0, 12);
       conn.pav = cleanAv(m.av);
       hostLobbyUpdate();
+      if (net.boardRows.length) { try { netSend(conn, { t: 'board', rows: net.boardRows }); } catch (e) {} }
       if (state === 'play' || state === 'over') { try { netSend(conn, { t: 'wait' }); } catch (e) {} }
     } else if (m.t === 'in' && conn.ent && ents.includes(conn.ent)) hostApplyInput(conn.ent, m);
   });
@@ -2388,7 +2605,8 @@ function hostLobbyUpdate() {
   net.lobby = [getName()].concat(net.conns.map(c => c.pname));
   net.lobbyAv = [myAv].concat(net.conns.map(c => c.pav || ''));
   renderLobby();
-  for (const c of net.conns) { try { netSend(c, { t: 'lobby', names: net.lobby, avs: net.lobbyAv }); } catch (e) {} }
+  const ts = +$('mode').value || 1;
+  for (const c of net.conns) { try { netSend(c, { t: 'lobby', names: net.lobby, avs: net.lobbyAv, ts }); } catch (e) {} }
 }
 function packMap() {
   return {
@@ -2415,8 +2633,10 @@ function hostStartGame() {
   if (net.role !== 'host') return;
   if (!net.code) { lobbyMsg('Espera a que la sala termine de crearse…'); return; }
   const conns = net.conns.filter(c => c.open && c.pname);
+  if (!roundDone) recordBoard(null); // la partida anterior se cortó: cuenta igual para el ranking
   net.conns.forEach(c => { c.ent = null; c.ev = []; c.lootSig = null; });
   startGame([{ name: getName(), av: myAv }].concat(conns.map(c => ({ name: c.pname, av: c.pav, conn: c }))));
+  roundDone = false;
   const map = packMap();
   const pl = { x0: r1(plane.x0), y0: r1(plane.y0), x1: r1(plane.x1), y1: r1(plane.y1), ang: r2(plane.ang), dur: plane.dur };
   const names = ents.map(e => e.name), colors = ents.map(e => e.color), humans = ents.filter(e => e.human).map(e => e.id);
@@ -2424,12 +2644,13 @@ function hostStartGame() {
   net.round++;
   for (const c of conns) {
     if (!c.ent) continue;
-    try { netSend(c, { t: 'start', rd: net.round, map, plane: pl, names, colors, humans, avs, you: c.ent.id, diff: $('diff').value }); } catch (e) {}
+    try { netSend(c, { t: 'start', rd: net.round, map, plane: pl, names, colors, humans, avs, ts: teamSize, you: c.ent.id, diff: $('diff').value }); } catch (e) {}
   }
   net.sendAcc = 0;
 }
 // Controles recibidos de un amigo: su teléfono manda su posición (movimiento fluido) y sus acciones
 function hostApplyInput(e, m) {
+  if (Number.isInteger(m.w)) e.watch = m.w; // a quién observa (si está muerto)
   if (!e.alive) return;
   if (e.air !== 'plane' && Number.isFinite(m.x) && Number.isFinite(m.y)) {
     e.x = clamp(m.x, e.r, WORLD - e.r); e.y = clamp(m.y, e.r, WORLD - e.r);
@@ -2445,15 +2666,20 @@ function hostApplyInput(e, m) {
 // Envía el estado de la partida a cada amigo (~20 veces por segundo)
 function hostTick(dt) {
   net.sendAcc += dt;
-  if (net.sendAcc < 0.05) return;
-  net.sendAcc = 0;
+  if (net.sendAcc < SNAP_DT) return;
+  net.sendAcc = 0; net.tick++;
   const live = net.conns.filter(c => c.open && c.ent && ents.includes(c.ent));
   if (!live.length) { net.bev = []; return; }
-  const es = ents.map(e => {
+  // Ahorro de datos (sobre todo por el puente TURN): muerto = 0, en el avión = 1 (el amigo lo calcula solo)
+  const full = ents.map(e => {
+    if (!e.alive) return 0;
+    if (e.air === 'plane') return 1;
     const g = e.guns[e.slot];
-    return [r0(e.x), r0(e.y), r2(e.ang), Math.ceil(Math.max(0, e.hp)), r0(e.armor), e.alive ? 1 : 0, AIR[e.air],
+    return [r0(e.x), r0(e.y), r2(e.ang), Math.ceil(Math.max(0, e.hp)), r0(e.armor), 1, AIR[e.air],
       g ? GUNS.indexOf(g.type) : 0, g ? g.tier : 0, r1(Math.max(0, e.healT)), r1(Math.min(9, time - e.lastHurt)), r1(Math.max(0, e.glideT))];
   });
+  const fullTick = net.tick % 8 === 0;
+  const near = (me, o, mx, my) => Math.abs(o.x - me.x) < mx && Math.abs(o.y - me.y) < my;
   const z = [r0(zone.x), r0(zone.y), r0(zone.r), r0(zone.tx), r0(zone.ty), r0(zone.tr), ZST.indexOf(zone.state), r1(zone.timer), zone.phase];
   const ns = nades.map(n => [r0(n.x), r0(n.y), r2(n.age)]), ds = drops.map(d => [r0(d.x), r0(d.y), r2(d.t)]);
   let sig = loot.length;
@@ -2461,7 +2687,20 @@ function hostTick(dt) {
   let packedLoot = null;
   for (const c of live) {
     const e = c.ent;
-    const msg = { t: 's', rd: net.round, tm: r2(time), pt: r2(plane.t), z, e: es, n: ns, d: ds, ev: net.bev.concat(c.ev),
+    // los jugadores lejanos a lo que ve en pantalla (él mismo, o a quien observa si está muerto) van solo
+    // 1 de cada 8 veces y sus disparos no se envían; en el aire o al cambiar de observado recibe todo
+    const w = ents[e.watch];
+    const focus = e.alive ? (e.air === 'ground' ? e : null) : w && w.alive && w.air === 'ground' ? w : null;
+    const refresh = c.lastFocus !== focus; c.lastFocus = focus;
+    const es = !focus || fullTick || refresh ? full : full.map((a, i) => {
+      if (typeof a !== 'object') return a;
+      const o = ents[i];
+      return o === e || o.team === e.team || near(focus, o, 1250, 900) ? a : null;
+    });
+    const ev = focus ? net.bev.filter(v => v.k !== 'f' || !ents[v.o] || near(focus, ents[v.o], 1600, 1200)) : net.bev;
+    const zs = z.filter((_, i) => i !== 7).join(','), sendZ = zs !== c.lastZ || net.tick % 15 === 0; c.lastZ = zs;
+    const msg = { t: 's', rd: net.round, tm: r2(time), pt: r2(plane.t), z: sendZ ? z : undefined, e: es,
+      n: ns.length ? ns : undefined, d: ds.length ? ds : undefined, ev: ev.concat(c.ev),
       me: { hp: r1(Math.max(0, e.hp)), ar: r0(e.armor), m: e.meds, g: e.nades, k: e.kills, s: e.slot,
         gs: e.guns.map(g => g ? [GUNS.indexOf(g.type), g.tier, g.mag] : null),
         rl: r2(Math.max(0, e.reloadT)), hl: r2(Math.max(0, e.healT)),
@@ -2541,20 +2780,30 @@ function clientOnData(m) {
   if (m.t === 'lobby') {
     net.lobby = Array.isArray(m.names) ? m.names : [];
     net.lobbyAv = Array.isArray(m.avs) ? m.avs.map(cleanAv) : [];
+    net.lobbyTs = [1, 2, 4].includes(m.ts) ? m.ts : 1;
+    $('lobbyMode').value = String(net.lobbyTs);
     renderLobby();
   }
   else if (m.t === 'wait') lobbyMsg('Hay una partida en curso. Entrarás en la siguiente.');
   else if (m.t === 'full') hostGone('La sala está llena.');
   else if (m.t === 'start') { net.round = m.rd; clientStart(m); }
   else if (m.t === 's' && m.rd === net.round && (state === 'play' || state === 'over') && ents) applySnap(m);
+  else if (m.t === 'board' && Array.isArray(m.rows)) {
+    net.boardRows = m.rows.slice(0, MAX_PLAYERS * 3).map(r => ({
+      n: String(r && r.n || 'Jugador').slice(0, 12), av: cleanAv(r && r.av),
+      w: Math.max(0, r.w | 0), k: Math.max(0, r.k | 0), g: Math.max(0, r.g | 0), b: Math.max(0, r.b | 0),
+    }));
+    renderBoard();
+  }
 }
 function clientStart(m) {
   diff = DIFFS[m.diff] || DIFFS.normal;
+  teamSize = [1, 2, 4].includes(m.ts) ? m.ts : 1;
   unpackMap(m.map); buildGround();
   plane = { x0: m.plane.x0, y0: m.plane.y0, x1: m.plane.x1, y1: m.plane.y1, ang: m.plane.ang, dur: m.plane.dur, t: 0, x: m.plane.x0, y: m.plane.y0 };
   ents = m.names.map((name, i) => {
     const e = makeEnt(i === m.you, name, m.colors[i]);
-    e.id = i; e.human = m.humans.includes(i);
+    e.id = i; e.human = m.humans.includes(i); e.team = Math.floor(i / teamSize);
     e.av = e.human && Array.isArray(m.avs) ? cleanAv(m.avs[i]) : '';
     return e;
   });
@@ -2565,12 +2814,16 @@ function clientStart(m) {
 }
 function applySnap(s) {
   time = s.tm; plane.t = s.pt;
-  const z = s.z;
-  zone.x = z[0]; zone.y = z[1]; zone.r = z[2]; zone.tx = z[3]; zone.ty = z[4]; zone.tr = z[5];
-  zone.state = ZST[z[6]] || 'wait'; zone.timer = z[7]; zone.phase = z[8];
+  const z = s.z; // la zona solo viene cuando cambia
+  if (z) {
+    zone.x = z[0]; zone.y = z[1]; zone.r = z[2]; zone.tx = z[3]; zone.ty = z[4]; zone.tr = z[5];
+    zone.state = ZST[z[6]] || 'wait'; zone.timer = z[7]; zone.phase = z[8];
+  }
   for (let i = 0; i < s.e.length; i++) {
     const a = s.e[i], e = ents[i];
-    if (!e || e === player) continue;
+    if (!e || e === player || a === null) continue; // null: sin cambios (jugador lejano)
+    if (a === 0) { if (e.alive) dieFx(e); e.alive = false; continue; }
+    if (a === 1) { e.alive = true; e.air = 'plane'; e.x = e.tx = clamp(plane.x, 0, WORLD); e.y = e.ty = clamp(plane.y, 0, WORLD); continue; }
     const air = AIRS[a[6]];
     if (e.tx == null || e.air !== air || dist(e.x, e.y, a[0], a[1]) > 250) { e.x = a[0]; e.y = a[1]; e.ang = a[2]; }
     e.tx = a[0]; e.ty = a[1]; e.ta = a[2];
@@ -2587,8 +2840,8 @@ function applySnap(s) {
   if (me.a > AIR[p.air]) { p.air = AIRS[me.a]; p.x = me.x; p.y = me.y; p.glideT = me.gt; }
   if (p.alive && !me.al) { dieFx(p); p.alive = false; }
   if (s.l) loot = s.l.map(a => ({ x: a[0], y: a[1], kind: KINDS[a[2]], gun: a[2] === 0 ? { type: GUNS[a[3]], tier: a[4], mag: 0 } : undefined }));
-  nades = s.n.map(a => ({ x: a[0], y: a[1], age: a[2] }));
-  drops = s.d.map(a => ({ x: a[0], y: a[1], t: a[2] }));
+  nades = (s.n || []).map(a => ({ x: a[0], y: a[1], age: a[2] }));
+  drops = (s.d || []).map(a => ({ x: a[0], y: a[1], t: a[2] }));
   for (const ev of s.ev || []) handleEvent(ev);
 }
 // Eventos: los del jugador local (anfitrión o solo) y los que llegan por la red (invitado)
@@ -2613,7 +2866,7 @@ function handleEvent(ev) {
       break;
     case 'a': showAnnounce(ev.text, ev.c); if (ev.s && sfx[ev.s]) sfx[ev.s](); break;
     case 's': if (sfx[ev.n]) sfx[ev.n](); if (ev.n === 'reload') mouse.pressed = false; break;
-    case 'h': hurtFlash = 0.35; if (ev.x != null) indicators.push({ x: ev.x, y: ev.y, t: 1.3 }); break;
+    case 'h': hurtFlash = 0.35; buzz(35); if (ev.x != null) indicators.push({ x: ev.x, y: ev.y, t: 1.3 }); break;
     case 'd': {
       hitMarker = 0.15; dmgDealt += ev.v; sfx.hit();
       const tg = ents[ev.id];
@@ -2623,7 +2876,7 @@ function handleEvent(ev) {
       else floats.push({ target: tg, x: tg.x + rand(-10, 10), y: tg.y - 26, v: ev.v, t: 1, armor: !!ev.a });
       break;
     }
-    case 'kl': killMarker = 0.5; sfx.kill(); break;
+    case 'kl': killMarker = 0.5; sfx.kill(); buzz([25, 40, 70]); break;
     case 'dead': {
       const p = player;
       p.alive = false; p.place = ev.place;
@@ -2632,7 +2885,14 @@ function handleEvent(ev) {
       endGame(false);
       break;
     }
-    case 'win': endGame(true); break;
+    case 'win': teamWon(); break;
+    case 'pl': if (ev.place > 0) player.place = ev.place; break;
+    case 'em': {
+      if (net.role !== 'client') break;
+      const o = ents[ev.id];
+      if (o && ev.i >= 0 && ev.i < EMOS.length) { o.emo = ev.i; o.emoT = time; emoSound(o); }
+      break;
+    }
   }
 }
 // Balas solo visuales en el teléfono del invitado (el daño lo calcula el anfitrión)
@@ -2648,8 +2908,9 @@ function bulletsVisual(dt) {
         for (let k = 0; k < 3; k++) particles.push({ x: b.x, y: b.y, vx: rand(-80, 80), vy: rand(-80, 80), life: 0.25, max: 0.25, color: '#d8d2c0', size: 2 });
         break;
       }
+      const ow = ents[b.o];
       for (const e of ents) {
-        if (!e.alive || e.air !== 'ground' || e.id === b.o) continue;
+        if (!e.alive || e.air !== 'ground' || e.id === b.o || (ow && ow.team === e.team)) continue;
         const dx = e.x - b.x, dy = e.y - b.y;
         if (dx * dx + dy * dy < e.r * e.r) { remove = true; break; }
       }
@@ -2686,6 +2947,7 @@ function clientUpdate(dt) {
     e.hitT -= dt;
   }
   bulletsVisual(dt);
+  if (zone.timer > 0) zone.timer = Math.max(0, zone.timer - dt); // el anfitrión solo manda la zona cuando cambia
   for (let i = blasts.length - 1; i >= 0; i--) { blasts[i].t -= dt; if (blasts[i].t <= 0) blasts.splice(i, 1); }
   for (const n of nades) n.age += dt;
   for (const d of drops) d.t -= dt;
@@ -2694,12 +2956,14 @@ function clientUpdate(dt) {
 }
 function clientSendInput(dt) {
   net.inAcc += dt;
-  if (net.inAcc < 0.033) return;
+  if (net.inAcc < 0.05) return;
   net.inAcc = 0;
   const c = net.host, p = player;
   if (!c || !c.open || !p) return;
   try {
-    netSend(c, { t: 'in', x: r0(p.x), y: r0(p.y), a: r2(p.ang), mv: p.moving ? 1 : 0, sp: p.sprint ? 1 : 0, d: mouse.down && !paused ? 1 : 0, q: net.actions });
+    netSend(c, p.alive
+      ? { t: 'in', x: r0(p.x), y: r0(p.y), a: r2(p.ang), mv: p.moving ? 1 : 0, sp: p.sprint ? 1 : 0, d: mouse.down && !paused ? 1 : 0, q: net.actions }
+      : { t: 'in', w: spectate ? spectate.id : -1, q: [] });
   } catch (e) {}
   net.actions = [];
 }
@@ -2732,6 +2996,7 @@ addEventListener('keydown', e => {
   else if (e.code === 'KeyG') { const m = mouseWorld(); act('nade', m.x, m.y); }
   else if (e.code === 'Digit1') act('s0');
   else if (e.code === 'Digit2') act('s1');
+  else if (/^Digit[5-8]$/.test(e.code)) act('emo' + (+e.code[5] - 5));
 });
 addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Tab') showMap = false; });
 /* ---------- Controles táctiles ---------- */
@@ -2744,6 +3009,7 @@ function enableTouch() {
 const inRect = (x, y, r) => r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
 function pressButton(id) {
   const p = player;
+  if (id === 'emo') { emoOpen = !emoOpen; return; }
   if (id === 'reload') act('reload');
   else if (id === 'heal') act('heal');
   else if (id === 'nade') {
@@ -2767,6 +3033,10 @@ cv.addEventListener('pointerdown', e => {
   if (inRect(x, y, uiRects.minimap)) { showMap = true; return; }
   if (player.air === 'plane') { act('jump'); return; }
   if (player.air === 'ground') {
+    if (emoOpen) {
+      for (const b of emoButtons()) if (dist(x, y, b.x, b.y) < 26) { act('emo' + b.i); emoOpen = false; return; }
+      if (dist(x, y, touchButtons()[3].x, touchButtons()[3].y) >= BTN_R + 10) emoOpen = false;
+    }
     for (const b of touchButtons()) if (dist(x, y, b.x, b.y) < BTN_R + 10) { pressButton(b.id); return; }
     for (let i = 0; i < 2; i++) if (inRect(x, y, uiRects.slots[i])) { act('s' + i); return; }
     if (inRect(x, y, uiRects.pickup)) { act('pickup'); return; }
@@ -2829,6 +3099,20 @@ $('again').onclick = () => { if (net.role === 'host') hostStartGame(); else if (
 $('toMenu').onclick = () => { leaveRoom(); toMenu(); };
 $('resume').onclick = () => setPause(false);
 $('quit').onclick = () => { leaveRoom(); toMenu(); };
+// Modo de juego (se recuerda en el teléfono); en la sala solo lo cambia el anfitrión
+try { const m = localStorage.getItem('zf-mode'); if (['1', '2', '4'].includes(m)) $('mode').value = m; } catch (e) {}
+function setMode(v) {
+  if (!['1', '2', '4'].includes(v)) return;
+  $('mode').value = v; $('lobbyMode').value = v;
+  try { localStorage.setItem('zf-mode', v); } catch (e) {}
+  if (net.role === 'host') hostLobbyUpdate();
+}
+$('mode').onchange = () => setMode($('mode').value);
+$('lobbyMode').onchange = () => { if (net.role === 'host') setMode($('lobbyMode').value); };
+// Vibración (solo si el teléfono la permite; en iPhone el navegador no deja)
+if (navigator.vibrate) $('vibRow').classList.add('can');
+$('vib').checked = vibOn;
+$('vib').onchange = () => { vibOn = $('vib').checked; try { localStorage.setItem('zf-vib', vibOn ? '1' : '0'); } catch (e) {} if (vibOn) buzz(60); };
 $('updateBtn').onclick = () => {
   if ((state === 'play' || net.role !== 'solo') && !confirm('Actualizar ahora te saca de la partida o de la sala. ¿Seguir?')) return;
   location.reload();
