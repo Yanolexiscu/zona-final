@@ -23,6 +23,14 @@
   canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; touch-action: none; }
   #c3 { position: fixed; inset: 0; z-index: -1; pointer-events: none; display: none; }
   body { background: transparent; }
+  .set-card { max-width: 440px; width: calc(100vw - 32px); }
+  .srow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 4px; border-bottom: 1px solid var(--line); color: var(--text); font-size: .95rem; text-align: left; cursor: pointer; }
+  .srow.vib { margin: 0; justify-content: space-between; }
+  .srow input[type=range] { width: 140px; accent-color: var(--accent); }
+  .srow input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--accent); }
+  .set-card > button { margin-top: 12px; display: block; width: 100%; }
+  .menu-btns { display: flex; gap: 8px; justify-content: center; margin: -4px 0 14px; flex-wrap: wrap; }
+  .menu-btns button { padding: 8px 12px; font-size: .9rem; }
   .v3d { display: flex; margin: -6px auto 14px; color: var(--muted); font-size: .9rem; gap: 6px; align-items: center; justify-content: center; }
   body { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
   .card { max-height: calc(100vh - 32px); overflow-y: auto; }
@@ -220,8 +228,11 @@
       <button class="sec skin-btn" id="skinBtn" type="button"><canvas width="60" height="60"></canvas><span>Skin</span></button>
     </div>
     <p class="char-desc" id="charDesc"></p>
-    <label class="v3d" id="v3dRow"><input type="checkbox" id="v3d" checked> 🧊 Vista 3D · calidad <select id="q3d"><option value="auto">Auto</option><option value="baja">Baja</option><option value="media">Media</option><option value="alta">Alta</option></select></label>
-    <label class="vib touch-only" id="vibRow"><input type="checkbox" id="vib" checked> 📳 Vibración</label>
+    <div class="menu-btns">
+      <button class="sec" id="setBtn" type="button">⚙️ Ajustes</button>
+      <button class="sec" id="misBtn" type="button">📋 Misiones</button>
+      <button class="sec" id="profBtn" type="button">📊 Perfil</button>
+    </div>
     <button id="play">Jugar solo</button>
     <div class="mp">
       <div class="mp-title">👥 Jugar con amigos</div>
@@ -303,8 +314,25 @@
     <p id="pauseTxt">Pulsa Esc para continuar.</p>
     <div class="row" style="margin:0">
       <button id="resume">Continuar</button>
+      <button class="sec" id="pauseSet" type="button">⚙️ Ajustes</button>
       <button class="sec" id="quit">Abandonar</button>
     </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="settings">
+  <div class="card set-card">
+    <div class="big">⚙️ Ajustes</div>
+    <label class="srow"><span>🧊 Vista 3D</span><input type="checkbox" id="v3d" checked></label>
+    <label class="srow"><span>✨ Calidad 3D</span><select id="q3d"><option value="auto">Auto (se ajusta sola)</option><option value="baja">Baja</option><option value="media">Media</option><option value="alta">Alta</option></select></label>
+    <label class="srow"><span>🧍 Tamaño de los jugadores</span><input type="range" id="psz" min="1.2" max="2.3" step="0.1"></label>
+    <label class="srow"><span>🔊 Volumen</span><input type="range" id="vol" min="0" max="1" step="0.05"></label>
+    <label class="srow vib touch-only" id="vibRow"><span>📳 Vibración</span><input type="checkbox" id="vib" checked></label>
+    <label class="srow"><span>🎯 Ayuda para apuntar (táctil)</span><input type="checkbox" id="aimA" checked></label>
+    <label class="srow"><span>🔋 Ahorro de batería (30 FPS)</span><input type="checkbox" id="fps30"></label>
+    <label class="srow"><span>🌦️ Clima (lluvia, nieve, niebla…)</span><input type="checkbox" id="wxOn" checked></label>
+    <button class="sec" id="tutAgain" type="button">🎓 Ver el tutorial otra vez</button>
+    <button id="setOk" type="button">Listo</button>
   </div>
 </div>
 
@@ -567,8 +595,12 @@ const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= Math.PI * 2;
 /* ---------- Sonido (Web Audio, sin archivos, con estéreo) ---------- */
 let actx = null, noiseBuf = null, muted = false, sndCount = 0, sndWindow = 0;
 try { muted = localStorage.getItem('zf-mute') === '1'; } catch (e) {}
+let master = null;
 function ac() {
-  if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+  if (!actx) {
+    actx = new (window.AudioContext || window.webkitAudioContext)();
+    master = actx.createGain(); master.gain.value = typeof vol === 'number' ? vol : 1; master.connect(actx.destination);
+  }
   if (actx.state === 'suspended') actx.resume();
   return actx;
 }
@@ -580,8 +612,8 @@ function soundBudget() {
 function outTo(a, node, pan) {
   if (pan && a.createStereoPanner) {
     const p = a.createStereoPanner(); p.pan.value = clamp(pan, -1, 1);
-    node.connect(p); p.connect(a.destination);
-  } else node.connect(a.destination);
+    node.connect(p); p.connect(master || a.destination);
+  } else node.connect(master || a.destination);
 }
 function noise(vol, freq, dur, pan = 0) {
   if (muted || vol < 0.02 || !soundBudget()) return;
@@ -1795,7 +1827,7 @@ function applyTouchAim() {
   touch.aimWas = true;
   let ang = Math.atan2(a.dy, a.dx) + camYaw();
   const g = p.guns[p.slot], range = g ? WEAPONS[g.type].range : 600;
-  let best = null, bd = 0.26;
+  let best = null, bd = aimAssist ? 0.26 : 0;
   for (const o of ents) {
     if (o === p || !o.alive || !o.seen || o.air !== 'ground' || o.team === p.team) continue;
     if (dist(p.x, p.y, o.x, o.y) > range) continue;
@@ -1966,6 +1998,20 @@ function steer(e, tx, ty) {
   }
   return { x: tx, y: ty };
 }
+// Punto detrás de un obstáculo cercano, del lado contrario al enemigo
+function coverFrom(e, t) {
+  let best = null, bd = 380;
+  const pt = (ox, oy, rad) => {
+    const d = dist(e.x, e.y, ox, oy);
+    if (d > bd) return;
+    const dx = ox - t.x, dy = oy - t.y, l = Math.hypot(dx, dy) || 1, px = ox + dx / l * (rad + e.r + 14), py = oy + dy / l * (rad + e.r + 14);
+    if (px < 40 || py < 40 || px > WORLD - 40 || py > WORLD - 40 || dist(px, py, zone.x, zone.y) > zone.r - 30) return;
+    best = { x: px, y: py }; bd = d;
+  };
+  for (const c of circles) if (c.kind !== 'shield' || c.sid) pt(c.x, c.y, c.r);
+  for (const q of rects) if (q.kind !== 'wall') pt(q.x + q.w / 2, q.y + q.h / 2, Math.max(q.w, q.h) / 2);
+  return best;
+}
 function updateBot(e, dt) {
   if (e.target && !e.target.alive) e.target = null;
   if (e.down) { // derribado: se arrastra hacia el compañero en pie más cercano
@@ -2007,7 +2053,13 @@ function updateBot(e, dt) {
     e.aimErr = (Math.random() - 0.5) * 2 * diff.aim;
     if (best) chooseSlot(e, bd);
     else {
-      if (e.hp < 65) startHeal(e);
+      if (e.hp < 50 && e.meds > 0 && e.healT <= 0 && !e.bushT) { // herido: busca un arbusto cercano para curarse escondido
+        let bb = null, bdd = 450;
+        for (const b of bushes) { const d = dist(e.x, e.y, b.x, b.y); if (d < bdd && dist(b.x, b.y, zone.x, zone.y) < zone.r - 60) { bdd = d; bb = b; } }
+        if (bb) { e.wp = { x: bb.x, y: bb.y }; e.bushT = time; }
+      }
+      if (e.bushT && time - e.bushT > 6) e.bushT = 0;
+      if (e.hp < 65 && (!e.bushT || dist(e.x, e.y, e.wp ? e.wp.x : e.x, e.wp ? e.wp.y : e.y) < 30)) startHeal(e);
       const g = e.guns[e.slot];
       if (e.healT <= 0 && g.mag < WEAPONS[g.type].mag * 0.6) startReload(e);
       if (!e.wp || dist(e.x, e.y, e.wp.x, e.wp.y) < 40) e.wp = pickWaypoint(e);
@@ -2038,9 +2090,19 @@ function updateBot(e, dt) {
     const flee = e.hp < 35 && e.armor < 15 && e.meds > 0;
     const radial = flee ? -1 : d > W.pref + 60 ? 1 : d < W.pref - 60 ? -1 : 0;
     e.strafeT -= dt;
+    if (time - e.lastHurt < 0.15 && e.strafeT > 0.35) e.strafeT = rand(0.1, 0.35); // le dan: cambia de lado antes
     if (e.strafeT <= 0) { e.strafe = Math.random() < 0.5 ? -1 : 1; e.strafeT = rand(0.6, 1.6); }
     const sw = flee ? 0.4 : 0.8;
     mx = ux * radial - uy * e.strafe * sw; my = uy * radial + ux * e.strafe * sw;
+    // huir, recargar con el cargador vacío o curarse: ir a cubrirse detrás de una roca, árbol o caja
+    const g0 = e.guns[e.slot];
+    if (flee || (e.reloadT > 0 && g0.mag === 0) || e.healT > 0) {
+      if (!e.cover || time - e.coverT > 1.5) { e.cover = coverFrom(e, t); e.coverT = time; }
+      if (e.cover) {
+        const cx = e.cover.x - e.x, cy = e.cover.y - e.y, cd = Math.hypot(cx, cy);
+        if (cd > 12) { mx = cx / cd; my = cy / cd; } else { mx = my = 0; if (flee) startHeal(e); }
+      }
+    } else e.cover = null;
     e.fireDelay -= dt;
     if (e.fireDelay <= 0 && d < W.range * 0.95) { if (tryFire(e) && !W.auto) e.cd += rand(0.05, 0.35); }
     if (e.nades > 0 && d > 170 && d < NADE_MAX && time - e.nadeT > 5 && Math.random() < dt * 0.6)
@@ -2916,7 +2978,74 @@ function render(dt) {
     ctx.fillStyle = fl.armor ? '#90cdf4' : '#ffffff'; ctx.fillText(Math.round(fl.v), fl.x, fl.y);
   }
   ctx.globalAlpha = 1;
+  wxUpdate(); drawWeather2D();
   drawHUD();
+}
+
+
+/* ---------- Tutorial (primera partida en solitario) ---------- */
+let tut = null;
+const tutDone = () => { try { return localStorage.getItem('zf-tut') === '1'; } catch (e) { return true; } };
+const TUT = [
+  { k: 'Pulsa ESPACIO para saltar del avión', t: 'Toca la pantalla para saltar del avión', done: p => p.air !== 'plane' },
+  { k: 'Dirige la caída con W A S D', t: 'Dirige la caída con el joystick izquierdo', done: p => p.air === 'ground' },
+  { k: 'Muévete con W A S D (Shift para correr)', t: 'Muévete con el joystick izquierdo (empújalo del todo para correr)', done: (p, s) => dist(p.x, p.y, s.x, s.y) > 220 },
+  { k: 'Busca un arma mejor y pulsa E para recogerla', t: 'Busca un arma mejor y toca «Recoger»', done: p => !!p.guns[1] || p.guns[0].type !== 'pistola' || p.guns[0].tier > 0 },
+  { k: 'Apunta con el ratón y haz clic para disparar', t: 'Desliza el joystick derecho para apuntar y disparar', done: (p, s) => p.lastShot > s.t0 },
+  { k: 'Cúrate con Q cuando te falte vida ➕', t: 'Cúrate con el botón ➕ cuando te falte vida', done: (p, s) => p.healT > 0 || time - s.t0 > 10 },
+  { k: 'Pon una pared con F para cubrirte 🧱', t: 'Pon una pared con el botón 🧱 para cubrirte', done: (p, s) => p.walls < s.walls || time - s.t0 > 10 },
+  { k: 'Quédate dentro del círculo blanco: fuera, la zona morada hace daño', t: 'Quédate dentro del círculo blanco: fuera, la zona morada hace daño', done: (p, s) => time - s.t0 > 7 },
+  { k: '¡Listo! Sé el último en pie 🏆', t: '¡Listo! Sé el último en pie 🏆', done: (p, s) => time - s.t0 > 4 },
+];
+function tutStart() { tut = { step: 0, t0: time, x: player.x, y: player.y, walls: player.walls }; }
+function tutTick() {
+  if (!tut || state !== 'play' || !player || !player.alive) return;
+  const p = player;
+  if (!TUT[tut.step].done(p, tut)) return;
+  tut.step++; tut.t0 = time; tut.x = p.x; tut.y = p.y; tut.walls = p.walls;
+  try { tone(990, 0.08, 'triangle', 0.08); } catch (e) {}
+  if (tut.step >= TUT.length) { tut = null; try { localStorage.setItem('zf-tut', '1'); } catch (e) {} }
+}
+function drawTutorial() {
+  if (!tut || state !== 'play' || !player.alive || showMap) return;
+  const S = TUT[tut.step], t = `🎓 ${tut.step + 1}/${TUT.length} · ${touchMode ? S.t : S.k}`, y = touchMode ? 94 : 112, fs = touchMode ? 13 : 16;
+  ctx.font = `800 ${fs}px system-ui, "Segoe UI", sans-serif`;
+  const w = Math.min(VW - 20, ctx.measureText(t).width + 36);
+  rr(VW / 2 - w / 2, y - 17, w, 34, 17); ctx.fillStyle = 'rgba(10,12,28,.9)'; ctx.fill();
+  ctx.strokeStyle = '#ffd34d'; ctx.lineWidth = 2; ctx.stroke();
+  txt(t, VW / 2, y, fs, '#ffe9a3', 'center', 800);
+}
+
+/* ---------- Clima (solo visual; sale igual para todos porque depende del mapa) ---------- */
+let wx = 'claro', wxFor = null;
+const WX_INFO = { lluvia: '🌧️ Está lloviendo', nieve: '🌨️ Está nevando', niebla: '🌫️ Hay niebla', ceniza: '🌋 Cae ceniza del volcán', polvo: '🏜️ Tormenta de arena' };
+function wxUpdate() {
+  if (wxFor === ground) return;
+  wxFor = ground;
+  let h = 0;
+  for (const b of buildings) h = (h * 31 + Math.round(b.x) * 7 + Math.round(b.y)) % 1000003;
+  const r = (h % 100) / 100;
+  wx = !wxOn ? 'claro' : TH.snow ? (r < 0.6 ? 'nieve' : r < 0.8 ? 'niebla' : 'claro')
+    : TH.lava ? (r < 0.45 ? 'ceniza' : 'claro') : TH.cactus ? (r < 0.35 ? 'polvo' : 'claro')
+    : r < 0.28 ? 'lluvia' : r < 0.42 ? 'niebla' : 'claro';
+  if (WX_INFO[wx] && state === 'play') pushFeed(WX_INFO[wx], 6, false);
+}
+// En 2D: lluvia, nieve, niebla… dibujadas sobre la pantalla
+function drawWeather2D() {
+  if (wx === 'claro') return;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const t = performance.now() / 1000;
+  if (wx === 'niebla' || wx === 'polvo') { ctx.fillStyle = wx === 'niebla' ? 'rgba(200,210,222,.28)' : 'rgba(200,160,100,.26)'; ctx.fillRect(0, 0, VW, VH); }
+  ctx.beginPath();
+  const n = wx === 'lluvia' ? 140 : wx === 'niebla' ? 0 : 90;
+  for (let i = 0; i < n; i++) {
+    const sx = (i * 97.3 + (wx === 'polvo' ? t * 600 : t * 40)) % (VW + 40) - 20, sp = wx === 'lluvia' ? 900 : wx === 'polvo' ? 60 : 70;
+    const sy = (i * 61.7 + t * sp) % (VH + 40) - 20;
+    if (wx === 'lluvia') { ctx.moveTo(sx, sy); ctx.lineTo(sx - 4, sy + 16); }
+    else { ctx.moveTo(sx + 2, sy); ctx.arc(sx, sy, wx === 'polvo' ? 1.5 : 2.2, 0, Math.PI * 2); }
+  }
+  if (wx === 'lluvia') { ctx.strokeStyle = 'rgba(190,210,255,.45)'; ctx.lineWidth = 1.3; ctx.stroke(); }
+  else { ctx.fillStyle = wx === 'nieve' ? 'rgba(255,255,255,.85)' : wx === 'ceniza' ? 'rgba(80,80,80,.7)' : 'rgba(220,180,120,.6)'; ctx.fill(); }
 }
 
 /* ---------- Vista 3D (Three.js) ----------
@@ -2924,7 +3053,16 @@ function render(dt) {
    mundo (x, y) → Three (x, altura, y). El lienzo 2D queda encima para textos y la interfaz. */
 let THREE = null, r3 = null, use3D = true;
 try { use3D = localStorage.getItem('zf-3d') !== '0'; } catch (e) {}
-const PS = 1.7, AIM_H = 23 * PS, WALL_H = 74, PITCH = 0.98; // PS: tamaño de los personajes (más grandes que en 2D para verlos bien)
+let PS = 1.7, AIM_H = 23 * PS; // PS: tamaño de los personajes (más grandes que en 2D para verlos bien)
+const WALL_H = 74, PITCH = 0.98;
+try { const v = +localStorage.getItem('zf-psz'); if (v >= 1.2 && v <= 2.3) { PS = v; AIM_H = 23 * PS; } } catch (e) {}
+// Otros ajustes guardados en el teléfono
+let vol = 1, aimAssist = true, fps30 = false, wxOn = true;
+try {
+  const v = localStorage.getItem('zf-vol'); if (v != null && +v >= 0 && +v <= 1) vol = +v;
+  aimAssist = localStorage.getItem('zf-aim') !== '0'; fps30 = localStorage.getItem('zf-fps') === '1'; wxOn = localStorage.getItem('zf-wx') !== '0';
+} catch (e) {}
+const saveSet = (k, v) => { try { localStorage.setItem(k, String(v)); } catch (e) {} };
 const on3D = force => !!(use3D && r3 && (force || r3.ready));
 // Calidad: baja (sin sombras), media, alta. En «auto» baja sola si el teléfono no llega a 40 FPS.
 const QUALS = { baja: { pr: 0.85, sh: 0, fx: false }, media: { pr: 1.25, sh: 1024, fx: true }, alta: { pr: 2, sh: 2048, fx: true } };
@@ -3060,6 +3198,17 @@ function init3D() {
   r3.zwall = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 128, 1, true),
     new THREE.MeshBasicMaterial({ color: 0xa35cff, transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false }));
   r3.zwall.renderOrder = 4; r3.zwall.frustumCulled = false; dyn.add(r3.zwall);
+  // clima: lluvia (líneas) y copos/ceniza/polvo (puntos) en una caja que sigue a la cámara
+  const RN = 900, rg = new THREE.BufferGeometry();
+  rg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(RN * 6), 3));
+  r3.rain = new THREE.LineSegments(rg, new THREE.LineBasicMaterial({ color: 0xaabbdd, transparent: true, opacity: 0.5, depthWrite: false }));
+  r3.rain.frustumCulled = false; r3.rain.visible = false; dyn.add(r3.rain);
+  const FN = 700, fgeo = new THREE.BufferGeometry();
+  fgeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(FN * 3), 3));
+  r3.flakes = new THREE.Points(fgeo, new THREE.PointsMaterial({ color: 0xffffff, size: 6, transparent: true, opacity: 0.9, depthWrite: false }));
+  r3.flakes.frustumCulled = false; r3.flakes.visible = false; dyn.add(r3.flakes);
+  r3.drops = Array.from({ length: Math.max(RN, FN) }, () => [Math.random() * 2 - 1, Math.random() * 600, Math.random() * 2 - 1, Math.random() * 6.28]);
+  r3.RN = RN; r3.FN = FN; r3.bolt = 0; r3.boltT = 6;
   // avión
   const pb = geoB();
   pb.add(G.cyl, '#dfe3ea', 0, 0, 0, 0, 0, Math.PI / 2, 17, 230, 17);
@@ -3253,7 +3402,9 @@ function build3DWorld() {
     const wl = geoB();
     for (const b of buildings) for (const [x, y, w, h] of [[b.x + b.w * 0.3, b.y - 0.8, 26, 1], [b.x + b.w * 0.7, b.y + b.h + 0.8, 26, 1]]) wl.add(G.box, '#ffd27a', x, WALL_H * 0.55, y, 0, 0, 0, w, 16, h);
     if (buildings.length) world.add(new THREE.Mesh(wl.build(), new THREE.MeshBasicMaterial({ vertexColors: true })));
+    r3.hemiBase = r3.hemi.intensity; r3.sunBase = r3.sun.intensity;
   }
+  r3.hemiBase = r3.hemi.intensity; r3.sunBase = r3.sun.intensity;
   // casas: paredes por casa (para hacerlas transparentes al entrar) y tejado a dos aguas
   const wallCol = TH.city ? '#a7abb2' : TH.snow ? '#cdbfa8' : TH.lava ? '#5a4a42' : TH.palm ? '#f2e6cc' : '#e0d0b0';
   const trim = TH.city ? '#6d7179' : TH.lava ? '#2e2522' : '#8a6a48';
@@ -3594,6 +3745,18 @@ function syncEnt(e, f, dt) {
       else if (e.healT > 0) rz = -1.0;
       md.arms.rotation.z = kick > 0 ? rz : lerp(md.arms.rotation.z, rz, 0.3);
       md.arms.position.set(-kick * 45, 31, 0);
+      // reacciones: 👋 saludar, 😂 reír, 🔥 bailar, 🆘 saltar pidiendo ayuda
+      const ek = time - e.emoT;
+      if (e.emo >= 0 && ek >= 0 && ek < 2.4 && kick === 0 && e.reloadT <= 0) {
+        const w = now * 10;
+        if (e.emo === 0) md.arms.rotation.z = 1.9 + Math.sin(w) * 0.35;
+        else if (e.emo === 1) { body.rotation.z = Math.sin(w * 1.3) * 0.14; body.position.y += Math.abs(Math.sin(w)) * 4; md.arms.rotation.z = -0.5; }
+        else if (e.emo === 2) {
+          body.rotation.x = Math.sin(w * 0.8) * 0.28; body.position.y += Math.abs(Math.sin(w * 0.8)) * 9;
+          legs[0].rotation.z = Math.sin(w * 0.8) * 0.8; legs[1].rotation.z = -legs[0].rotation.z; md.arms.rotation.z = 0.8 + Math.sin(w * 1.6) * 0.6;
+          root.rotation.y = -e.ang + Math.sin(w * 0.4) * 0.6;
+        } else { body.position.y += Math.abs(Math.sin(w * 0.7)) * 14; md.arms.rotation.z = 2.4; }
+      }
       if (e.healT > 0) { const r = poolGet('ring'); r.position.set(e.x, 2.2, e.y); r.scale.setScalar(26 + Math.sin(now * 8) * 3); r.material.color.setHex(0x68d391); r.material.opacity = 0.75; }
     }
   }
@@ -3794,7 +3957,36 @@ function render3D(dt) {
   c3.position.set(tx - ys * D * Math.cos(PITCH), r3.camH + D * Math.sin(PITCH), tz + yc * D * Math.cos(PITCH));
   c3.lookAt(tx, r3.camH, tz);
   c3.far = D * 6; c3.updateProjectionMatrix();
-  scene.fog.near = D * 1.5; scene.fog.far = D * 3.6;
+  wxUpdate();
+  const fogK = wx === 'niebla' ? 0.42 : wx === 'polvo' ? 0.5 : wx === 'lluvia' || wx === 'nieve' || wx === 'ceniza' ? 0.8 : 1;
+  scene.fog.near = D * 1.5 * fogK; scene.fog.far = D * 3.6 * fogK;
+  scene.fog.color.set(wx === 'niebla' ? (TH.night ? '#20242e' : '#a9b2bc') : wx === 'polvo' ? '#c8a070' : TH.bg);
+  // relámpagos cuando llueve
+  let bolt = 0;
+  if (wx === 'lluvia') { r3.boltT -= dt; if (r3.boltT <= 0) { r3.boltT = rand(7, 16); r3.bolt = 0.35; setTimeout(() => { try { noise(0.18 * vol, 120, 1.4); } catch (e) {} }, 500); } }
+  if (r3.bolt > 0) { r3.bolt -= dt; bolt = r3.bolt > 0.25 || (r3.bolt < 0.15 && r3.bolt > 0.08) ? 1 : 0; }
+  const wl = wx === 'lluvia' ? 0.7 : wx === 'niebla' || wx === 'ceniza' ? 0.85 : wx === 'polvo' ? 0.9 : 1;
+  r3.hemi.intensity = (r3.hemiBase || 1.5) * wl * (bolt ? 2.6 : 1); r3.sun.intensity = (r3.sunBase || 2) * (wx === 'claro' ? 1 : wl * 0.85);
+  // lluvia / copos alrededor de la cámara
+  const rainOn = wx === 'lluvia', flakeOn = wx === 'nieve' || wx === 'ceniza' || wx === 'polvo';
+  r3.rain.visible = rainOn; r3.flakes.visible = flakeOn;
+  if (rainOn || flakeOn) {
+    const B = D * 1.4, n = rainOn ? (QL.fx ? r3.RN : 350) : (QL.fx ? r3.FN : 300), dr = r3.drops;
+    const sp = rainOn ? 950 : wx === 'nieve' ? 70 : wx === 'ceniza' ? 45 : 14, wind = wx === 'polvo' ? 380 : rainOn ? 60 : 12;
+    const A = (rainOn ? r3.rain : r3.flakes).geometry.attributes.position, P = A.array;
+    for (let i = 0; i < n; i++) {
+      const d = dr[i];
+      d[1] -= sp * dt; d[0] += wind * dt / B + (flakeOn ? Math.sin(now / 900 + d[3]) * dt * 0.02 : 0);
+      if (d[1] < 0) { d[1] += 600; d[0] = Math.random() * 2 - 1; d[2] = Math.random() * 2 - 1; }
+      if (d[0] > 1) d[0] -= 2;
+      const x = tx + d[0] * B, z = tz + d[2] * B - D * 0.2, y = d[1] + r3.camH;
+      if (rainOn) { P.set([x, y, z, x - 3, y + 24, z], i * 6); }
+      else { P[i * 3] = x; P[i * 3 + 1] = y; P[i * 3 + 2] = z; }
+    }
+    (rainOn ? r3.rain : r3.flakes).geometry.setDrawRange(0, rainOn ? n * 2 : n);
+    A.needsUpdate = true;
+    if (flakeOn) { const m = r3.flakes.material; m.color.set(wx === 'nieve' ? 0xffffff : wx === 'ceniza' ? 0x4a4644 : 0xd8b080); m.size = wx === 'polvo' ? 5 : wx === 'ceniza' ? 5 : 7; }
+  }
   const sun = r3.sun, sc = sun.shadow.camera, ext = Math.min(2200, D * 1.25);
   sun.position.set(tx - 500, 1100, tz - 300); sun.target.position.set(tx + ys * D * 0.25, 0, tz - yc * D * 0.25);
   if (Math.abs(sc.right - ext) > 5) { sc.left = -ext; sc.right = ext; sc.top = ext; sc.bottom = -ext; sc.near = 10; sc.far = 3000; sc.updateProjectionMatrix(); }
@@ -4368,6 +4560,7 @@ function drawHUD() {
     }
     ctx.stroke();
   }
+  drawTutorial();
   if (showMap) drawBigMap(); else drawTouchUI();
 }
 function drawBigMap() {
@@ -4492,13 +4685,14 @@ function enterPlay() {
 }
 // humans: [{ name, conn? }] — el primero es el jugador local, el resto amigos conectados
 function startGame(humans) {
+  tut = null;
   diff = DIFFS[$('diff').value] || DIFFS.normal;
   teamSize = [1, 2, 4].includes(+$('mode').value) ? +$('mode').value : 1;
   genMap($('map').value); rects.forEach((q, i) => { q.id = i; }); buildGround(); initPlane(); spawnEnts(humans); initZone();
   resetRound(); spawnVehicles();
   enterPlay();
 }
-function newGame() { startGame([{ name: 'Tú', av: myAv, ch: myCh, sk: mySk }]); }
+function newGame() { startGame([{ name: 'Tú', av: myAv, ch: myCh, sk: mySk }]); if (!tutDone()) tutStart(); }
 function endGame(win) {
   if (state !== 'play') return;
   state = 'over';
@@ -5545,6 +5739,21 @@ $('vib').checked = vibOn;
 $('v3d').checked = use3D;
 $('v3d').onchange = () => { set3D($('v3d').checked); setTimeout(showSkinBtns, 400); };
 $('q3d').value = qualSet;
+function openSettings() {
+  $('v3d').checked = use3D; $('q3d').value = qualSet; $('psz').value = PS; $('vol').value = vol;
+  $('vib').checked = vibOn; $('aimA').checked = aimAssist; $('fps30').checked = fps30; $('wxOn').checked = wxOn;
+  $('settings').classList.remove('hidden');
+}
+$('setBtn').onclick = openSettings;
+$('pauseSet').onclick = openSettings;
+$('setOk').onclick = () => $('settings').classList.add('hidden');
+$('psz').oninput = () => { PS = +$('psz').value; AIM_H = 23 * PS; saveSet('zf-psz', PS); };
+$('vol').oninput = () => { vol = +$('vol').value; saveSet('zf-vol', vol); if (master) master.gain.value = vol; };
+$('vol').onchange = () => { try { ac(); sfx.pickup(); } catch (e) {} };
+$('aimA').onchange = () => { aimAssist = $('aimA').checked; saveSet('zf-aim', aimAssist ? 1 : 0); };
+$('fps30').onchange = () => { fps30 = $('fps30').checked; saveSet('zf-fps', fps30 ? 1 : 0); };
+$('wxOn').onchange = () => { wxOn = $('wxOn').checked; saveSet('zf-wx', wxOn ? 1 : 0); wxFor = null; };
+$('tutAgain').onclick = () => { try { localStorage.removeItem('zf-tut'); } catch (e) {} $('tutAgain').textContent = '🎓 Saldrá en tu próxima partida en solitario'; };
 $('q3d').onchange = () => setQuality($('q3d').value);
 if (use3D) load3D();
 $('vib').onchange = () => { vibOn = $('vib').checked; try { localStorage.setItem('zf-vib', vibOn ? '1' : '0'); } catch (e) {} if (vibOn) buzz(60); };
@@ -5564,6 +5773,7 @@ $('specSkip').onclick = () => finishSpectate(null, 0);
 /* ---------- Bucle principal ---------- */
 let lastT = performance.now();
 function frame(t) {
+  if (fps30 && t - lastT < 30) { requestAnimationFrame(frame); return; } // ahorro de batería
   const dt = Math.min(0.05, Math.max(0, (t - lastT) / 1000)); lastT = t;
   if (touchMode && VH > VW && state === 'play' && !paused) setPause(true); // en vertical se pausa
   const live = state === 'play' || state === 'over';
@@ -5574,6 +5784,7 @@ function frame(t) {
   }
   if (live && net.role === 'host') hostTick(dt);
   if (specMode) specTick();
+  tutTick();
   render(dt);
   updateBoxUI();
   requestAnimationFrame(frame);
