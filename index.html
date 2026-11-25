@@ -453,6 +453,14 @@ const SKINS = [
   { name: 'Lava',        shirt: '#2a1a14', skin: '#3a2a22', hat: 'hair', hair: '#ff5a1f', pat: 'lava', glow: '#ff5a1f', price: 1300 },
   { name: 'Galaxia',     shirt: '#1a1240', skin: '#c68e5a', hair: '#7a5cff', hat: 'hood', hatC: '#24185a', pat: 'stars', patC: '#ffffff', glow: '#7a5cff', price: 1600 },
   { name: 'Diamante',    shirt: '#5ee7ff', skin: '#e0ac69', hair: '#1d1d1d', hat: 'crown', hatC: '#bff6ff', pat: 'gem', glow: '#5ee7ff', price: 2500 },
+  { name: 'Señor Sandía', shirt: '#2e9e4f', skin: '#ff5d6c', glove: '#ffffff', hat: 'melon', pat: 'track', patC: '#ffffff', price: 700 },
+  { name: 'Estatua Viva', shirt: '#9aa0a6', skin: '#a9afb5', hat: 'stone', pat: 'cracks', cape: '#c62828', price: 900 },
+  { name: 'Tiburón',     shirt: '#4a86c5', skin: '#f1c27d', glove: '#4a86c5', hat: 'shark', hatC: '#4a86c5', pat: 'belly', patC: '#e8f0f8', price: 800 },
+  { name: 'Calabaza',    shirt: '#1d1d22', skin: '#e0ac69', glove: '#2a2a30', hat: 'pumpkin', hatC: '#ff8a1f', glow: '#ff8a1f', pat: 'buttons', patC: '#ff8a1f', price: 850 },
+  { name: 'Cactus Vaquero', shirt: '#3f9a4a', skin: '#3f9a4a', hat: 'cactushead', hatC: '#7a4a24', pat: 'spines', price: 750 },
+  { name: 'Zorro Ninja', shirt: '#24232b', skin: '#f08c3a', hat: 'fox', hatC: '#f08c3a', band: '#24232b', pat: 'belt', patC: '#f08c3a', price: 950 },
+  { name: 'Hamburguesa', shirt: '#d8402f', skin: '#f1c27d', hat: 'burger', hatC: '#d8402f', pat: 'apron', patC: '#ffd34d', price: 600 },
+  { name: 'Yeti',        shirt: '#eef3f8', skin: '#9fd6ff', hat: 'yeti', hatC: '#eef3f8', pat: 'fur2', glove: '#eef3f8', price: 1200 },
 ];
 const NEED_TXT = { games: 'partidas', wins: 'victorias', kills: 'bajas' };
 // Monedas 🪙: se ganan jugando y se gastan en la tienda de skins (todo se guarda en el teléfono)
@@ -2207,6 +2215,10 @@ function drawPerson(c, sk, x, y, ang, o = {}) {
   if (S.alpha) c.globalAlpha *= S.alpha;
   c.lineCap = 'round'; c.lineJoin = 'round';
   // mochila
+  if (S.cape && !o.pose) { // capa por detrás
+    c.fillStyle = S.cape; c.beginPath(); c.moveTo(-3, -13); c.quadraticCurveTo(-22, -16, -24, 0); c.quadraticCurveTo(-22, 16, -3, 13); c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(0,0,0,.4)'; c.lineWidth = 1.4; c.stroke();
+  }
   if (S.pack) { c.fillStyle = S.pack; c.beginPath(); c.ellipse(-10, 0, 5, 9, 0, 0, Math.PI * 2); c.fill(); c.strokeStyle = dark; c.lineWidth = 1.5; c.stroke(); }
   // brillo neón
   if (S.glow && !o.hit) { c.shadowColor = S.glow; c.shadowBlur = 12; }
@@ -2335,6 +2347,73 @@ function drawHead(c, S, av, hit) {
       c.beginPath(); c.arc(0, 0, R + 0.5, 0, Math.PI * 2); c.fillStyle = '#f4f6ff'; c.fill();
       c.fillStyle = '#2a2f5a'; for (const sgn of [1, -1]) { c.beginPath(); c.ellipse(3.5, sgn * 3, 1.6, 2.4, 0, 0, Math.PI * 2); c.fill(); }
       break;
+    case 'melon': { // cabeza de sandía con gafas de sol
+      c.beginPath(); c.arc(0, 0, R + 2, 0, Math.PI * 2); c.fillStyle = '#2e8b3e'; c.fill(); ring();
+      c.strokeStyle = '#1b5e28'; c.lineWidth = 2; c.beginPath();
+      for (const k of [-6, -2, 2, 6]) { c.moveTo(-R, k); c.quadraticCurveTo(0, k * 1.35, R, k); }
+      c.stroke();
+      c.fillStyle = '#111'; for (const sgn of [1, -1]) { c.beginPath(); c.ellipse(6, sgn * 3.6, 2.4, 3, 0, 0, Math.PI * 2); c.fill(); }
+      c.fillRect(5.2, -1, 1.6, 2);
+      break;
+    }
+    case 'stone': // cabeza de piedra con grietas
+      c.beginPath(); c.arc(0, 0, R, 0, Math.PI * 2); c.fillStyle = '#b4bac0'; c.fill(); ring();
+      c.strokeStyle = 'rgba(60,64,70,.7)'; c.lineWidth = 1; c.beginPath(); c.moveTo(-6, -4); c.lineTo(-1, -1); c.lineTo(-3, 4); c.moveTo(-1, -1); c.lineTo(4, -5); c.stroke();
+      c.fillStyle = '#e8f6ff'; for (const sgn of [1, -1]) { c.beginPath(); c.arc(4.5, sgn * 3, 1.3, 0, Math.PI * 2); c.fill(); }
+      break;
+    case 'shark': // capucha de tiburón: aleta arriba y dientes delante
+      c.beginPath(); c.arc(-1, 0, R + 2, 0, Math.PI * 2); c.fillStyle = S.hatC; c.fill(); ring();
+      c.beginPath(); c.arc(2.5, 0, R - 3, -Math.PI / 2, Math.PI / 2); c.fillStyle = S.skin; c.fill();
+      c.fillStyle = '#fff'; for (let k = -5; k <= 5; k += 2.5) { c.beginPath(); c.moveTo(6.5, k - 1.2); c.lineTo(9.5, k); c.lineTo(6.5, k + 1.2); c.closePath(); c.fill(); }
+      c.beginPath(); c.moveTo(-11, -1.5); c.lineTo(-3, 0); c.lineTo(-11, 1.5); c.quadraticCurveTo(-15, 0, -11, -1.5); c.fillStyle = '#356a9e'; c.fill();
+      break;
+    case 'pumpkin': { // calabaza con ojos que brillan
+      c.beginPath(); c.ellipse(0, 0, R + 1, R + 2.5, 0, 0, Math.PI * 2); c.fillStyle = S.hatC; c.fill(); ring();
+      c.strokeStyle = '#c4610f'; c.lineWidth = 1.4; c.beginPath();
+      for (const k of [-5, 0, 5]) { c.moveTo(-R, k); c.quadraticCurveTo(0, k * 1.5, R, k); }
+      c.stroke();
+      c.fillStyle = '#3a6b1e'; c.fillRect(-4, -1.5, 4, 3);
+      c.shadowColor = '#ffe066'; c.shadowBlur = 8; c.fillStyle = '#ffe066';
+      for (const sgn of [1, -1]) { c.beginPath(); c.moveTo(4, sgn * 1.5); c.lineTo(7.5, sgn * 3.5); c.lineTo(4, sgn * 5.5); c.closePath(); c.fill(); }
+      c.shadowBlur = 0;
+      break;
+    }
+    case 'cactushead': // cabeza de cactus con espinas y sombrero
+      c.beginPath(); c.arc(0, 0, R, 0, Math.PI * 2); c.fillStyle = '#3f9a4a'; c.fill(); ring();
+      c.beginPath(); c.ellipse(-1, 0, R + 4.5, R + 5.5, 0, 0, Math.PI * 2); c.fillStyle = S.hatC; c.fill(); ring();
+      c.beginPath(); c.arc(-1, 0, R - 3, 0, Math.PI * 2); c.fillStyle = '#5c3618'; c.fill();
+      c.fillStyle = '#e5484d'; c.fillRect(4, -6, 3, 12);
+      c.strokeStyle = '#f5f0d0'; c.lineWidth = 1; c.beginPath();
+      for (const [x, y] of [[-12, -5], [-12, 5], [-8, -12], [-8, 12], [5, -13], [5, 13]]) { c.moveTo(x, y); c.lineTo(x * 1.2, y * 1.2); }
+      c.stroke();
+      break;
+    case 'fox': // máscara de zorro con orejas de punta oscura
+      c.beginPath(); c.arc(0, 0, R + 0.5, 0, Math.PI * 2); c.fillStyle = S.hatC; c.fill(); ring();
+      c.beginPath(); c.moveTo(9.5, 0); c.lineTo(3, -5); c.lineTo(3, 5); c.closePath(); c.fillStyle = '#fff3e6'; c.fill();
+      c.fillStyle = '#111'; c.beginPath(); c.arc(9.5, 0, 1.4, 0, Math.PI * 2); c.fill();
+      for (const sgn of [1, -1]) {
+        c.beginPath(); c.moveTo(-1, sgn * 4); c.lineTo(-4, sgn * 13); c.lineTo(-8, sgn * 5); c.closePath(); c.fillStyle = S.hatC; c.fill(); ring();
+        c.beginPath(); c.moveTo(-3, sgn * 10); c.lineTo(-4, sgn * 13); c.lineTo(-5.5, sgn * 10.5); c.closePath(); c.fillStyle = '#24232b'; c.fill();
+      }
+      c.strokeStyle = S.band; c.lineWidth = 2.5; c.beginPath(); c.moveTo(4, -7.5); c.lineTo(4, 7.5); c.stroke();
+      break;
+    case 'burger': { // cabeza de hamburguesa con gorra de repartidor
+      const layers = [['#d99a4e', R + 2], ['#5a2e14', R + 1.2], ['#ffcf3a', R + 0.6], ['#4caf50', R], ['#e0903c', R - 1.5]];
+      for (const [col, r] of layers) { c.beginPath(); c.arc(0, 0, r, 0, Math.PI * 2); c.fillStyle = col; c.fill(); }
+      ring();
+      c.fillStyle = '#fff6d8'; for (const [x, y] of [[-3, -3], [1, 2], [-5, 3], [2, -4], [-1, 5]]) { c.beginPath(); c.ellipse(x, y, 1.2, 0.6, 0.6, 0, Math.PI * 2); c.fill(); }
+      c.beginPath(); c.ellipse(-3, 0, 5, 6.5, 0, 0, Math.PI * 2); c.fillStyle = S.hatC; c.fill(); ring();
+      c.beginPath(); c.ellipse(2.5, 0, 2.8, 5, 0, -Math.PI / 2, Math.PI / 2); c.fill(); ring();
+      break;
+    }
+    case 'yeti': // pelo blanco y cuernos azules
+      for (const sgn of [1, -1]) { c.beginPath(); c.moveTo(-3, sgn * 5); c.quadraticCurveTo(-4, sgn * 14, 3, sgn * 13); c.lineTo(0, sgn * 6); c.closePath(); c.fillStyle = '#6fb8f0'; c.fill(); ring(); }
+      c.beginPath();
+      for (let k = 0; k < 14; k++) { const a = k / 14 * Math.PI * 2, r = k % 2 ? R + 0.5 : R + 3; c.lineTo(-1 + Math.cos(a) * r, Math.sin(a) * r); }
+      c.closePath(); c.fillStyle = S.hatC; c.fill(); ring();
+      c.beginPath(); c.arc(3.5, 0, 4.5, 0, Math.PI * 2); c.fillStyle = S.skin; c.fill();
+      c.fillStyle = '#1d2a3a'; for (const sgn of [1, -1]) { c.beginPath(); c.arc(5, sgn * 2, 1, 0, Math.PI * 2); c.fill(); }
+      break;
     case 'crown':
       hair();
       c.beginPath();
@@ -2377,6 +2456,21 @@ function skinPattern(c, S) {
   } else if (S.pat === 'gem') {
     c.strokeStyle = 'rgba(255,255,255,.85)'; c.lineWidth = 1.1; c.beginPath();
     c.moveTo(-10, 0); c.lineTo(-2, -12); c.lineTo(6, 0); c.lineTo(-2, 12); c.closePath(); c.moveTo(-10, 0); c.lineTo(6, 0); c.moveTo(-2, -12); c.lineTo(-2, 12); c.stroke();
+  } else if (S.pat === 'track') { c.fillStyle = S.patC; c.fillRect(-12, -14, 22, 2.5); c.fillRect(-12, 11.5, 22, 2.5); c.fillRect(1, -3, 2, 6); }
+  else if (S.pat === 'cracks') {
+    c.strokeStyle = 'rgba(60,64,70,.65)'; c.lineWidth = 1.1; c.beginPath();
+    c.moveTo(-9, -10); c.lineTo(-4, -5); c.lineTo(-6, 0); c.lineTo(-1, 6); c.moveTo(-4, -5); c.lineTo(2, -8); c.moveTo(-6, 0); c.lineTo(-10, 5); c.stroke();
+    c.fillStyle = '#c62828'; c.fillRect(-12, -14, 22, 3);
+  } else if (S.pat === 'belly') { c.fillStyle = S.patC; c.beginPath(); c.ellipse(2, 0, 5, 10, 0, 0, Math.PI * 2); c.fill(); }
+  else if (S.pat === 'spines') {
+    c.strokeStyle = '#2b7a35'; c.lineWidth = 1.2; c.beginPath(); for (const y of [-8, 0, 8]) { c.moveTo(-10, y); c.lineTo(6, y); } c.stroke();
+    c.strokeStyle = '#f5f0d0'; c.lineWidth = 0.9; c.beginPath(); for (const [x, y] of [[-6, -10], [0, -4], [-4, 4], [2, 10], [-9, 6]]) { c.moveTo(x, y); c.lineTo(x + 2, y - 2); } c.stroke();
+  } else if (S.pat === 'belt') { c.fillStyle = S.patC; c.save(); c.rotate(0.6); c.fillRect(-14, -1.5, 28, 3); c.restore(); }
+  else if (S.pat === 'apron') { c.fillStyle = '#fff'; c.fillRect(-2, -9, 10, 18); c.fillStyle = S.patC; c.fillRect(1, -2, 4, 4); }
+  else if (S.pat === 'fur2') {
+    c.strokeStyle = 'rgba(150,175,200,.7)'; c.lineWidth = 1.1; c.beginPath();
+    for (const [x, y] of [[-8, -10], [-3, -6], [-8, -1], [-2, 2], [-7, 8], [0, 9], [3, -2]]) { c.moveTo(x, y); c.lineTo(x + 2.5, y + 2); }
+    c.stroke();
   } else if (S.pat === 'royal') {
     c.fillStyle = S.patC; c.fillRect(-12, -3, 22, 6);
     c.fillStyle = '#ffd700'; c.beginPath(); c.arc(-2, 0, 1.6, 0, Math.PI * 2); c.fill();
